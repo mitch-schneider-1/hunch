@@ -1,0 +1,33 @@
+{
+  "name": "hunch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Slack bot for collecting thoughtful, anonymous beliefs from your team — with an LMSR market underneath.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:dev": "prisma migrate dev"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@slack/bolt": "3.22.0",
+    "dotenv": "16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "prisma": "5.22.0",
+    "ts-node-dev": "2.0.0",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

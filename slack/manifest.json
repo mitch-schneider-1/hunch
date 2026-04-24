@@ -1,0 +1,50 @@
+{
+  "display_information": {
+    "name": "Hunch",
+    "description": "Ask your team thoughtful, anonymous questions. See what people actually believe.",
+    "background_color": "#1a1a1a",
+    "long_description": "Hunch is a forecasting tool for your team. Ask a question (a launch date, a hire, a target), let people commit play-money coins to YES or NO, and see the aggregated signal as a leader. Participants never see the crowd's probability — that prevents anchoring and information cascades. Anonymity is absolute: no one ever sees who bet what."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Hunch",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/hunch",
+        "description": "Ask, weigh in, resolve. Run `/hunch help` for subcommands.",
+        "usage_hint": "create | me | resolve | admin | leaderboard | reset",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "commands",
+        "users:read",
+        "users:read.email",
+        "channels:read",
+        "groups:read",
+        "im:write",
+        "team:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_uninstalled"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

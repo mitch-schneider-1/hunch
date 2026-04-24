@@ -1,0 +1,114 @@
+// Hunch — data model.
+// Single-tenant MVP, but every record is namespaced by Workspace so we
+// can never accidentally render data from one team to another.
+//
+// Anonymity invariant: Bet.userId exists for payouts and for the user's
+// own /hunch me view, but NEVER renders to other participants.
+// All participant-facing surfaces in src/slack/blocks.ts must enforce
+// this — this schema only stores the link, the view layer hides it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  slackTeamId   String   @unique
+  name          String
+  memberCount   Int
+  botUserId     String
+  botToken      String
+  installedAt   DateTime @default(now())
+
+  users   User[]
+  markets Market[]
+}
+
+model User {
+  id           String  @id @default(cuid())
+  workspaceId  String
+  slackUserId  String
+  username     String
+  coinBalance  Int     @default(10000)
+  isAdmin      Boolean @default(false)
+  createdAt    DateTime @default(now())
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bets           Bet[]
+  createdMarkets Market[]  @relation("MarketCreator")
+
+  @@unique([workspaceId, slackUserId])
+  @@index([workspaceId])
+}
+
+enum MarketStatus {
+  OPEN
+  RESOLVED
+  VOIDED
+}
+
+enum Side {
+  YES
+  NO
+}
+
+model Market {
+  id                 String       @id @default(cuid())
+  workspaceId        String
+  creatorUserId      String
+  question           String
+  resolutionCriteria String
+  deadline           DateTime
+  channelId          String
+  messageTs          String?
+  // LMSR state
+  b                  Float
+  qYes               Float        @default(0)
+  qNo                Float        @default(0)
+  status             MarketStatus @default(OPEN)
+  outcome            Side?
+  resolvedAt         DateTime?
+  createdAt          DateTime     @default(now())
+
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator        User            @relation("MarketCreator", fields: [creatorUserId], references: [id])
+  bets           Bet[]
+  priceSnapshots PriceSnapshot[]
+
+  @@index([workspaceId, status])
+}
+
+model Bet {
+  id              String   @id @default(cuid())
+  marketId        String
+  userId          String
+  side            Side
+  coinsCommitted  Int
+  sharesReceived  Float
+  priceAtBet      Float
+  createdAt       DateTime @default(now())
+
+  market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([marketId])
+  @@index([userId])
+}
+
+// Snapshot of internal probability after each bet.
+// Powers the admin "trend" view. Never exposed to participants.
+model PriceSnapshot {
+  id          String   @id @default(cuid())
+  marketId    String
+  probability Float
+  recordedAt  DateTime @default(now())
+
+  market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId, recordedAt])
+}
