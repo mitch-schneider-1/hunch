@@ -1,16 +1,17 @@
-import type { App, RespondFn } from "@slack/bolt";
+import type { RespondFn } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 import { prisma } from "../db";
 import { payoutForBet } from "../market/lmsr";
 import { buildPortfolio } from "../slack/blocks";
 import { ensureUser, getWorkspaceByTeamId } from "../slack/workspace";
 
 export async function handleMe(
-  app: App,
+  client: WebClient,
   body: { user_id: string; team_id: string; channel_id?: string },
   respond: RespondFn
 ): Promise<void> {
   const workspace = await getWorkspaceByTeamId(body.team_id);
-  const user = await ensureUser(app.client, workspace, body.user_id);
+  const user = await ensureUser(client, workspace, body.user_id);
 
   // Defense-in-depth: filter through the market relation so we only see
   // bets in this workspace, even if a user.id ever collided across tenants.

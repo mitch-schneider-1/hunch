@@ -1,4 +1,5 @@
-import type { App, RespondFn } from "@slack/bolt";
+import type { RespondFn } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 import { prisma } from "../db";
 import { priceYes } from "../market/lmsr";
 import { buildAdminDashboard, type AdminMarketRow } from "../slack/blocks";
@@ -7,14 +8,14 @@ import { ensureUser, getWorkspaceByTeamId, refreshAdminStatus } from "../slack/w
 const MAX_TREND_POINTS = 8;
 
 export async function handleAdminCommand(
-  app: App,
+  client: WebClient,
   body: { user_id: string; team_id: string; channel_id?: string },
   respond: RespondFn
 ): Promise<void> {
   const workspace = await getWorkspaceByTeamId(body.team_id);
   const user = await refreshAdminStatus(
-    app.client,
-    await ensureUser(app.client, workspace, body.user_id)
+    client,
+    await ensureUser(client, workspace, body.user_id)
   );
 
   const markets = await prisma.market.findMany({

@@ -1,10 +1,11 @@
-import type { App, RespondFn } from "@slack/bolt";
+import type { RespondFn } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 import { prisma } from "../db";
 import { buildLeaderboard } from "../slack/blocks";
 import { getWorkspaceByTeamId } from "../slack/workspace";
 
 export async function handleLeaderboard(
-  _app: App,
+  _client: WebClient,
   body: { user_id: string; team_id: string },
   respond: RespondFn
 ): Promise<void> {
