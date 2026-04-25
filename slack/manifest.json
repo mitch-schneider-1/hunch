@@ -13,7 +13,7 @@
     "slash_commands": [
       {
         "command": "/hunch",
-        "url": "https://hunch.app/slack/events",
+        "url": "https://app.hunchpredictions.com/slack/events",
         "description": "Ask, weigh in, resolve. Run `/hunch help` for subcommands.",
         "usage_hint": "create | me | resolve | admin | leaderboard | reset",
         "should_escape": false
@@ -22,7 +22,7 @@
   },
   "oauth_config": {
     "redirect_urls": [
-      "https://hunch.app/slack/oauth_redirect"
+      "https://app.hunchpredictions.com/slack/oauth_redirect"
     ],
     "scopes": {
       "bot": [
@@ -40,14 +40,14 @@
   },
   "settings": {
     "event_subscriptions": {
-      "request_url": "https://hunch.app/slack/events",
+      "request_url": "https://app.hunchpredictions.com/slack/events",
       "bot_events": [
         "app_uninstalled"
       ]
     },
     "interactivity": {
       "is_enabled": true,
-      "request_url": "https://hunch.app/slack/events"
+      "request_url": "https://app.hunchpredictions.com/slack/events"
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
