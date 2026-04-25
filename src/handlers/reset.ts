@@ -33,7 +33,7 @@ export async function handleResetCommand(
   if (args[0] !== "confirm") {
     await respond({
       response_type: "ephemeral",
-      text: `This will reset everyone to ${STARTING_COINS_AMOUNT.toLocaleString()} coins and void all open markets. To proceed, run \`/hunch reset confirm\`.`,
+      text: `This will reset everyone to ${STARTING_COINS_AMOUNT.toLocaleString()} hunches and void all open markets. To proceed, run \`/hunch reset confirm\`.`,
     });
     return;
   }
