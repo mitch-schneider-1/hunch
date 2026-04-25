@@ -4,8 +4,15 @@ import { liquidityForWorkspace } from "../market/lmsr";
 import {
   buildCreateMarketModal,
   buildMarketCard,
+  CREATE_MARKET_TEMPLATES,
 } from "../slack/blocks";
-import { ensureUser, getWorkspace } from "../slack/workspace";
+import { ensureUser, getWorkspaceByTeamId } from "../slack/workspace";
+import {
+  AbuseLimitError,
+  assertCanCreateMarket,
+  validateMarketTextLengths,
+} from "../guards/abuse";
+import { logEvent } from "../observability/events";
 
 export function registerCreateMarket(app: App): void {
   // Open the create-market modal.
@@ -15,6 +22,29 @@ export function registerCreateMarket(app: App): void {
     await client.views.open({
       trigger_id: body.trigger_id,
       view: buildCreateMarketModal(),
+    });
+  });
+
+  // Welcome DM "Ask anything" → opens a blank create modal.
+  app.action({ action_id: "welcome_create_blank" }, async ({ ack, body, client }) => {
+    await ack();
+    if (body.type !== "block_actions" || !body.trigger_id) return;
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: buildCreateMarketModal(),
+    });
+  });
+
+  // Welcome DM sample-market quick-creates → open the modal pre-filled.
+  app.action({ action_id: "welcome_prefill" }, async ({ ack, body, client, action }) => {
+    await ack();
+    if (body.type !== "block_actions" || !body.trigger_id) return;
+    if (action.type !== "button") return;
+    const templateKey = (action as { value: string }).value;
+    const template = CREATE_MARKET_TEMPLATES[templateKey] ?? {};
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: buildCreateMarketModal(template),
     });
   });
 
@@ -37,14 +67,33 @@ export function registerCreateMarket(app: App): void {
         errors.deadline_block = "Deadline must be in the future.";
       }
     }
+    if (question && criteria) {
+      const lengthErr = validateMarketTextLengths(question, criteria);
+      if (lengthErr) errors[lengthErr.field] = lengthErr.message;
+    }
     if (Object.keys(errors).length > 0) {
       await ack({ response_action: "errors", errors });
       return;
     }
-    await ack();
 
     const deadline = new Date(`${deadlineStr}T23:59:59Z`);
-    const workspace = await getWorkspace();
+    const workspace = await getWorkspaceByTeamId(body.team?.id);
+
+    try {
+      await assertCanCreateMarket(workspace.id);
+    } catch (err) {
+      if (err instanceof AbuseLimitError) {
+        await ack({
+          response_action: "errors",
+          errors: { [err.field]: err.message },
+        });
+        return;
+      }
+      throw err;
+    }
+
+    await ack();
+
     const creator = await ensureUser(client, workspace, body.user.id);
 
     const b = liquidityForWorkspace(workspace.memberCount);
@@ -59,6 +108,12 @@ export function registerCreateMarket(app: App): void {
         channelId: channelId!,
         b,
       },
+    });
+
+    await logEvent(workspace.id, "market_created", {
+      userId: creator.slackUserId,
+      marketId: market.id,
+      metadata: { questionLength: question!.length, criteriaLength: criteria!.length },
     });
 
     // Post the participant-facing card. Note: this builder is asserted

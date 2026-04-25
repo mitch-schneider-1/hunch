@@ -1,6 +1,8 @@
 // Hunch — data model.
-// Single-tenant MVP, but every record is namespaced by Workspace so we
-// can never accidentally render data from one team to another.
+// Multi-tenant: one process, many Slack workspaces. Every record outside
+// Workspace is namespaced by workspaceId so cross-tenant queries cannot
+// accidentally leak data between teams. The view layer enforces anonymity
+// within a workspace; the data layer enforces isolation between workspaces.
 //
 // Anonymity invariant: Bet.userId exists for payouts and for the user's
 // own /hunch me view, but NEVER renders to other participants.
@@ -17,16 +19,21 @@ datasource db {
 }
 
 model Workspace {
-  id            String   @id @default(cuid())
-  slackTeamId   String   @unique
-  name          String
-  memberCount   Int
-  botUserId     String
-  botToken      String
-  installedAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  slackTeamId      String   @unique
+  enterpriseId     String?
+  name             String
+  memberCount      Int
+  botUserId        String
+  botToken         String
+  // Full Slack Installation blob from OAuth. Bolt's InstallationStore
+  // round-trips this verbatim — never deserialize and reconstruct.
+  installationJson Json
+  installedAt      DateTime @default(now())
 
   users   User[]
   markets Market[]
+  events  EventLog[]
 }
 
 model User {
@@ -111,4 +118,22 @@ model PriceSnapshot {
   market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
 
   @@index([marketId, recordedAt])
+}
+
+// Lightweight usage analytics. Best-effort — failures here must never
+// abort a user-facing action. Used to learn what installers actually do
+// and to power the post-launch calibration feature.
+model EventLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventType   String   // "install_completed" | "market_created" | "bet_placed" | "market_resolved" | "command_used" | "reset" etc.
+  userId      String?
+  marketId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, eventType, createdAt])
+  @@index([eventType, createdAt])
 }
