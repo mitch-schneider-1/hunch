@@ -114,7 +114,7 @@ export function registerBet(app: App): void {
     }
     const coins = Number(coinsRaw);
     if (!coinsRaw || !Number.isFinite(coins) || coins <= 0 || !Number.isInteger(coins)) {
-      errors.coins_block = "Enter a positive whole number of coins.";
+      errors.coins_block = "Enter a positive whole number of hunches.";
     }
     if (Object.keys(errors).length > 0) {
       await ack({ response_action: "errors", errors });
@@ -139,7 +139,7 @@ export function registerBet(app: App): void {
         if (coins > user.coinBalance) {
           throw new BetError(
             "coins_block",
-            `You only have ${user.coinBalance.toLocaleString()} coins.`
+            `You only have ${user.coinBalance.toLocaleString()} hunches.`
           );
         }
         const market = await tx.market.findUnique({ where: { id: marketId } });
@@ -283,16 +283,16 @@ function computePreview(
     return { state: "incomplete", message: "Pick YES or NO to see what's at stake." };
   }
   if (!coinsRaw) {
-    return { state: "incomplete", message: "Enter the coins you want to commit." };
+    return { state: "incomplete", message: "Enter the hunches you want to commit." };
   }
   const coins = Number(coinsRaw);
   if (!Number.isFinite(coins) || coins <= 0 || !Number.isInteger(coins)) {
-    return { state: "invalid", message: "Enter a positive whole number of coins." };
+    return { state: "invalid", message: "Enter a positive whole number of hunches." };
   }
   if (coins > balance) {
     return {
       state: "invalid",
-      message: `You only have ${balance.toLocaleString()} coins.`,
+      message: `You only have ${balance.toLocaleString()} hunches.`,
     };
   }
   const p = previewBet(market.qYes, market.qNo, market.b, sideRaw, coins);

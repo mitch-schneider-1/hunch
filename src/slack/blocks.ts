@@ -152,8 +152,8 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
   let previewBlock: KnownBlock;
   if (args.preview.state === "ready" && args.preview.potentialWin !== undefined) {
     previewBlock = SECTION(
-      `*If you're right, you win ~${Math.round(args.preview.potentialWin).toLocaleString()} coins.*\n` +
-        `*If you're wrong, you lose ${Math.round(args.preview.potentialLoss ?? 0).toLocaleString()} coins.*`
+      `*If you're right, you win ~${Math.round(args.preview.potentialWin).toLocaleString()} hunches.*\n` +
+        `*If you're wrong, you lose ${Math.round(args.preview.potentialLoss ?? 0).toLocaleString()} hunches.*`
     );
   } else {
     previewBlock = CONTEXT(
@@ -194,7 +194,7 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
         dispatch_action: true,
         label: {
           type: "plain_text",
-          text: `How many coins do you want to commit? (you have ${args.maxCoins.toLocaleString()})`,
+          text: `How many hunches do you want to commit? (you have ${args.maxCoins.toLocaleString()})`,
           emoji: false,
         },
         element: {
@@ -227,10 +227,10 @@ export function buildBetConfirmation(args: {
 }): KnownBlock[] {
   return [
     SECTION(
-      `Got it. Your hunch is recorded — *${args.coins.toLocaleString()} coins on ${args.side}*.`
+      `Got it. Your hunch is recorded — *${args.coins.toLocaleString()} hunches on ${args.side}*.`
     ),
     CONTEXT(
-      `If you're right you win ~*${Math.round(args.potentialWin).toLocaleString()} coins*. If you're wrong you lose *${args.potentialLoss.toLocaleString()}*.`
+      `If you're right you win ~*${Math.round(args.potentialWin).toLocaleString()} hunches*. If you're wrong you lose *${args.potentialLoss.toLocaleString()}*.`
     ),
     CONTEXT(
       `Check back after *${fmtDate(args.deadline)}* to see how you did.`
@@ -263,9 +263,9 @@ export interface PortfolioInput {
  */
 export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
   const blocks: KnownBlock[] = [
-    SECTION(`*Your coins:* ${p.coinBalance.toLocaleString()}`),
+    SECTION(`*Your hunches:* ${p.coinBalance.toLocaleString()}`),
     CONTEXT(
-      `All-time P&L from resolved hunches: *${p.allTimePnl >= 0 ? "+" : ""}${p.allTimePnl.toLocaleString()} coins*`
+      `All-time P&L from resolved hunches: *${p.allTimePnl >= 0 ? "+" : ""}${p.allTimePnl.toLocaleString()} hunches*`
     ),
   ];
 
@@ -285,7 +285,7 @@ export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
     for (const pos of p.openPositions) {
       blocks.push(
         SECTION(
-          `• *${pos.question}*\n  You bet *${pos.side}* with *${pos.coinsCommitted.toLocaleString()}* coins.`
+          `• *${pos.question}*\n  You bet *${pos.side}* with *${pos.coinsCommitted.toLocaleString()}* hunches.`
         )
       );
     }
@@ -301,7 +301,7 @@ export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
         SECTION(
           `• *${pos.question}*\n  Outcome: *${pos.outcome}* — ${
             win ? "you were right" : "you were wrong"
-          }. P&L: *${sign}${pos.pnl.toLocaleString()} coins*.`
+          }. P&L: *${sign}${pos.pnl.toLocaleString()} hunches*.`
         )
       );
     }
@@ -369,7 +369,7 @@ export function buildWinnerDm(args: {
     },
     SECTION(`*${args.question}* resolved *${args.outcome}*. You were right.`),
     SECTION(
-      `Take-home: *+${Math.round(args.pnl).toLocaleString()} coins*. New balance: *${args.newBalance.toLocaleString()}*.`
+      `Take-home: *+${Math.round(args.pnl).toLocaleString()} hunches*. New balance: *${args.newBalance.toLocaleString()}*.`
     ),
     CONTEXT(`Run \`/hunch me\` to see all your hunches.`),
   ];
@@ -446,7 +446,7 @@ export function buildLeaderboard(
     return [
       SECTION("*Leaderboard*"),
       SECTION(
-        "No one has resolved any hunches yet. The leaderboard fills in as questions resolve and coins move. Run `/hunch create` to start one."
+        "No one has resolved any hunches yet. The leaderboard fills in as questions resolve and hunches move. Run `/hunch create` to start one."
       ),
     ];
   }
@@ -454,7 +454,7 @@ export function buildLeaderboard(
   const lines = rows
     .map(
       (r) =>
-        `*${r.rank}.* <@${r.slackUserId}>  —  ${r.score.toLocaleString()} coins`
+        `*${r.rank}.* <@${r.slackUserId}>  —  ${r.score.toLocaleString()} hunches`
     )
     .join("\n");
 
@@ -462,7 +462,7 @@ export function buildLeaderboard(
     SECTION("*Leaderboard*"),
     SECTION(lines),
     CONTEXT(
-      "Score = liquid coins + open commitments at cost. Open positions are valued at what you bet, not at any market price."
+      "Score = liquid hunches + open commitments at cost. Open positions are valued at what you bet, not at any market price."
     ),
   ];
 }
@@ -483,7 +483,7 @@ export function buildHelpCard(): KnownBlock[] {
       text: { type: "plain_text", text: "Hunch", emoji: false },
     },
     SECTION(
-      "Ask your team a question. They commit play-money coins to YES or NO. The aggregate stays hidden until the question resolves — that's what keeps it honest."
+      "Ask your team a question. They commit play-money hunches to YES or NO. The aggregate stays hidden until the question resolves — that's what keeps it honest."
     ),
     DIVIDER,
     SECTION("*What do you want to do?*"),
@@ -500,14 +500,14 @@ export function buildHelpCard(): KnownBlock[] {
     },
     SECTION(
       "Other commands:\n" +
-        "• `/hunch me` — your hunches and coins\n" +
+        "• `/hunch me` — your balance, open bets, and P&L\n" +
         "• `/hunch resolve` — close out a market you created (admins can resolve any)\n" +
         "• `/hunch admin` — aggregated signal across your markets (admins see all)\n" +
-        "• `/hunch leaderboard` — top 10 by coin balance\n" +
-        "• `/hunch reset confirm` — workspace admin: reset all coins, void open markets"
+        "• `/hunch leaderboard` — top 10 by hunch balance\n" +
+        "• `/hunch reset confirm` — workspace admin: reset all balances, void open markets"
     ),
     CONTEXT(
-      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 coins."
+      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 hunches."
     ),
   ];
 }
@@ -532,7 +532,7 @@ export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
       `Hi <@${installerSlackUserId}> — Hunch lets your team ask thoughtful, anonymous questions and see what people actually believe.`
     ),
     SECTION(
-      "*How it works.* Anyone asks a question. Your teammates commit play-money coins to YES or NO. When the question resolves, winners take coins from losers. The aggregate is hidden until resolution — that's what keeps it honest."
+      "*How it works.* Anyone asks a question. Your teammates commit play-money hunches to YES or NO. When the question resolves, winners take hunches from losers. The aggregate is hidden until resolution — that's what keeps it honest."
     ),
     DIVIDER,
     SECTION("*Try one of these to start:*"),
@@ -589,7 +589,7 @@ export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
     },
     DIVIDER,
     CONTEXT(
-      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 coins."
+      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 hunches."
     ),
     CONTEXT(
       "Run `/hunch help` any time to see all commands."
@@ -612,7 +612,7 @@ export function buildChannelAnnouncement(
       `${lead} It's a way to ask the team a question and see what people actually believe — anonymously.`
     ),
     SECTION(
-      "Try `/hunch create` to ask one. Try `/hunch me` to see your coins. Everyone starts with 10,000."
+      "Try `/hunch create` to ask one. Try `/hunch me` to see your balance. Everyone starts with 10,000."
     ),
     CONTEXT(
       "Run `/hunch help` for the full command list."

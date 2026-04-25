@@ -6,9 +6,9 @@ LMSR underneath. Thoughtful poll on the surface.
 
 ## What it is (and isn't)
 
-It is a forecasting tool. People ask questions ("Will we ship the mobile app by end of Q3?"), the team commits play-money coins to YES or NO, and leaders see what the crowd actually believes.
+It is a forecasting tool. People ask questions ("Will we ship the mobile app by end of Q3?"), the team commits play-money hunches to YES or NO, and leaders see what the crowd actually believes.
 
-It is **not** a trading platform. Participants never see the live aggregate probability — that prevents anchoring and information cascades. There is no order book, no live ticker, no leverage, no real money. Coins are a calibration mechanism, not a currency.
+It is **not** a trading platform. Participants never see the live aggregate probability — that prevents anchoring and information cascades. There is no order book, no live ticker, no leverage, no real money. Hunches are a calibration mechanism, not a currency.
 
 ## Just want to install it?
 
@@ -67,11 +67,11 @@ You should see `hunch is up — port=3000`. Visit `/slack/install` to install in
 | Command | Who | What it does |
 |---|---|---|
 | `/hunch create` | anyone | open the create-market modal |
-| `/hunch me` | anyone | your coin balance, open and resolved hunches, all-time P&L |
+| `/hunch me` | anyone | your hunch balance, open and resolved bets, all-time P&L |
 | `/hunch resolve` | creator or workspace admin | pick a market and resolve it YES or NO |
 | `/hunch resolve <id> <yes\|no>` | creator or workspace admin | resolve directly without the picker |
 | `/hunch admin` | creator or workspace admin | aggregated probability and trend across your markets |
-| `/hunch leaderboard` | anyone | top 10 by coin score |
+| `/hunch leaderboard` | anyone | top 10 by hunch score |
 | `/hunch reset confirm` | workspace admin only | reset everyone to 10K and void open markets |
 | `/hunch help` | anyone | command list |
 
@@ -123,4 +123,4 @@ See [`docs/architecture.md`](./docs/architecture.md) for the full data model and
 - LMSR is the mechanism. The math is exact, no approximations.
 - The internal market price exists. It is shown only to admins and market creators in `/hunch admin`, and to everyone in the resolution card.
 - Anonymity is absolute everywhere except the leaderboard (usernames + scores only — no bet history).
-- Each user gets 10,000 coins on first interaction. No replenishment. Going broke is part of the calibration mechanism.
+- Each user gets 10,000 hunches on first interaction. No replenishment. Going broke is part of the calibration mechanism.
