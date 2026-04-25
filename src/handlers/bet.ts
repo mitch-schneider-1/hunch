@@ -7,7 +7,8 @@ import {
   buildBetModal,
   buildMarketCard,
 } from "../slack/blocks";
-import { ensureUser, getWorkspace } from "../slack/workspace";
+import { ensureUser, getWorkspaceByTeamId } from "../slack/workspace";
+import { logEvent } from "../observability/events";
 
 export function registerBet(app: App): void {
   // Click "Place a hunch" → open the bet modal.
@@ -17,7 +18,7 @@ export function registerBet(app: App): void {
     if (action.type !== "button") return;
 
     const marketId = (action as { value: string }).value;
-    const workspace = await getWorkspace();
+    const workspace = await getWorkspaceByTeamId(body.team?.id);
     const market = await prisma.market.findUnique({ where: { id: marketId } });
     if (!market || market.workspaceId !== workspace.id) {
       await client.chat.postEphemeral({
@@ -71,7 +72,7 @@ export function registerBet(app: App): void {
       if (body.type !== "block_actions" || !body.view) return;
 
       const marketId = body.view.private_metadata;
-      const workspace = await getWorkspace();
+      const workspace = await getWorkspaceByTeamId(body.team?.id);
       const market = await prisma.market.findUnique({ where: { id: marketId } });
       if (!market || market.workspaceId !== workspace.id) return;
 
@@ -113,7 +114,7 @@ export function registerBet(app: App): void {
     }
     const coins = Number(coinsRaw);
     if (!coinsRaw || !Number.isFinite(coins) || coins <= 0 || !Number.isInteger(coins)) {
-      errors.coins_block = "Enter a positive whole number of coins.";
+      errors.coins_block = "Enter a positive whole number of hunches.";
     }
     if (Object.keys(errors).length > 0) {
       await ack({ response_action: "errors", errors });
@@ -121,7 +122,7 @@ export function registerBet(app: App): void {
     }
 
     const side = sideRaw as Side;
-    const workspace = await getWorkspace();
+    const workspace = await getWorkspaceByTeamId(body.team?.id);
 
     // Pull state inside the transaction so concurrent bets don't race.
     try {
@@ -138,16 +139,29 @@ export function registerBet(app: App): void {
         if (coins > user.coinBalance) {
           throw new BetError(
             "coins_block",
-            `You only have ${user.coinBalance.toLocaleString()} coins.`
+            `You only have ${user.coinBalance.toLocaleString()} hunches.`
           );
         }
         const market = await tx.market.findUnique({ where: { id: marketId } });
         if (!market) throw new BetError("coins_block", "This hunch no longer exists.");
+        if (market.workspaceId !== workspace.id) {
+          throw new BetError("coins_block", "This hunch belongs to another workspace.");
+        }
         if (market.status !== "OPEN") {
           throw new BetError("coins_block", "This hunch is closed.");
         }
         if (market.deadline.getTime() < Date.now()) {
           throw new BetError("coins_block", "This hunch has passed its deadline.");
+        }
+
+        const priorBets = await tx.bet.count({
+          where: { userId: user.id, marketId: market.id },
+        });
+        if (priorBets >= 10) {
+          throw new BetError(
+            "coins_block",
+            `You've already placed ${priorBets} hunches on this question. That's the cap.`
+          );
         }
 
         const updated = applyBet(market.qYes, market.qNo, market.b, side, coins);
@@ -189,6 +203,12 @@ export function registerBet(app: App): void {
       });
 
       await ack();
+
+      await logEvent(workspace.id, "bet_placed", {
+        userId: body.user.id,
+        marketId: result.market.id,
+        metadata: { side, coins, participantCount: result.participantCount },
+      });
 
       // Compute participant-facing win/lose amounts (not internal price).
       const grossPayout = result.shares * SHARE_PAYOUT;
@@ -263,16 +283,16 @@ function computePreview(
     return { state: "incomplete", message: "Pick YES or NO to see what's at stake." };
   }
   if (!coinsRaw) {
-    return { state: "incomplete", message: "Enter the coins you want to commit." };
+    return { state: "incomplete", message: "Enter the hunches you want to commit." };
   }
   const coins = Number(coinsRaw);
   if (!Number.isFinite(coins) || coins <= 0 || !Number.isInteger(coins)) {
-    return { state: "invalid", message: "Enter a positive whole number of coins." };
+    return { state: "invalid", message: "Enter a positive whole number of hunches." };
   }
   if (coins > balance) {
     return {
       state: "invalid",
-      message: `You only have ${balance.toLocaleString()} coins.`,
+      message: `You only have ${balance.toLocaleString()} hunches.`,
     };
   }
   const p = previewBet(market.qYes, market.qNo, market.b, sideRaw, coins);
