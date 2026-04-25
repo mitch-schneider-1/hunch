@@ -1,4 +1,5 @@
 import type { App, RespondFn } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 import { Side } from "@prisma/client";
 import { prisma } from "../db";
 import { payoutForBet, priceYes } from "../market/lmsr";
@@ -15,7 +16,7 @@ export function registerResolve(app: App): void {
     const [marketId, sideRaw] = value.split("|");
     if (!marketId || (sideRaw !== "YES" && sideRaw !== "NO")) return;
     const userId = body.user.id;
-    await doResolve(app, body.team?.id, marketId, sideRaw as Side, userId, async (text) => {
+    await doResolve(client, body.team?.id, marketId, sideRaw as Side, userId, async (text) => {
       // Replace the picker with a confirmation in the same ephemeral surface.
       await respond({ response_type: "ephemeral", replace_original: true, text });
     });
@@ -23,7 +24,7 @@ export function registerResolve(app: App): void {
 }
 
 export async function handleResolveCommand(
-  app: App,
+  client: WebClient,
   body: { user_id: string; team_id: string; channel_id?: string; text: string },
   respond: RespondFn
 ): Promise<void> {
@@ -33,8 +34,8 @@ export async function handleResolveCommand(
 
   const workspace = await getWorkspaceByTeamId(body.team_id);
   const requester = await refreshAdminStatus(
-    app.client,
-    await ensureUser(app.client, workspace, body.user_id)
+    client,
+    await ensureUser(client, workspace, body.user_id)
   );
 
   // Typed form: /hunch resolve <marketId> <yes|no>
@@ -45,7 +46,7 @@ export async function handleResolveCommand(
       await respond({ response_type: "ephemeral", text: "Use `yes` or `no` for the outcome." });
       return;
     }
-    await doResolve(app, body.team_id, marketId, side as Side, body.user_id, async (text) => {
+    await doResolve(client, body.team_id, marketId, side as Side, body.user_id, async (text) => {
       await respond({ response_type: "ephemeral", text });
     });
     return;
@@ -117,7 +118,7 @@ export async function handleResolveCommand(
 }
 
 async function doResolve(
-  app: App,
+  client: WebClient,
   teamId: string | undefined,
   marketId: string,
   outcome: Side,
@@ -126,8 +127,8 @@ async function doResolve(
 ): Promise<void> {
   const workspace = await getWorkspaceByTeamId(teamId);
   const resolver = await refreshAdminStatus(
-    app.client,
-    await ensureUser(app.client, workspace, resolverSlackUserId)
+    client,
+    await ensureUser(client, workspace, resolverSlackUserId)
   );
 
   const market = await prisma.market.findUnique({
@@ -180,7 +181,7 @@ async function doResolve(
   });
 
   // Post the public resolution card in the original channel.
-  await app.client.chat.postMessage({
+  await client.chat.postMessage({
     channel: market.channelId,
     text: `Resolved: ${outcome}`,
     blocks: buildResolutionCard({
@@ -206,7 +207,7 @@ async function doResolve(
       const slackUserId = slackIdById.get(w.userId);
       if (!slackUserId) continue;
       try {
-        await app.client.chat.postMessage({
+        await client.chat.postMessage({
           channel: slackUserId,
           text: `🎉 You called it. ${market.question} resolved ${outcome}.`,
           blocks: buildWinnerDm({

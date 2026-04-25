@@ -76,35 +76,35 @@ function registerSlashRouter(app: App): void {
           return;
         case "me":
           await handleMe(
-            app,
+            client,
             { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id },
             respond
           );
           return;
         case "resolve":
           await handleResolveCommand(
-            app,
+            client,
             { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id, text },
             respond
           );
           return;
         case "admin":
           await handleAdminCommand(
-            app,
+            client,
             { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id },
             respond
           );
           return;
         case "leaderboard":
           await handleLeaderboard(
-            app,
+            client,
             { user_id: command.user_id, team_id: teamId },
             respond
           );
           return;
         case "reset":
           await handleResetCommand(
-            app,
+            client,
             { user_id: command.user_id, team_id: teamId, text },
             respond
           );
