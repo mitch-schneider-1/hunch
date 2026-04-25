@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hunch — anonymous prediction markets for your team</title>
+  <meta name="description" content="Ask your team a question. They commit play-money coins to YES or NO. The aggregate stays hidden until resolution — that's what keeps it honest." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Hunch</h1>
+      <p class="tagline">Ask your team a question. See what they actually believe.</p>
+    </header>
+
+    <section class="hero">
+      <p>
+        Hunch is a Slack bot for thoughtful, anonymous forecasting. Anyone asks a question — a launch date, a hire, a target. Teammates commit play-money coins to YES or NO. The aggregate stays hidden until the question resolves. That's what keeps it honest.
+      </p>
+      <a class="install-button" href="/slack/install">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 122.8 122.8" aria-hidden="true">
+          <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9z" fill="#E01E5A"/>
+          <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9z" fill="#36C5F0"/>
+          <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9z" fill="#2EB67D"/>
+          <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9z" fill="#ECB22E"/>
+        </svg>
+        <span>Add to Slack</span>
+      </a>
+      <p class="install-note">Free during the beta. Two clicks to install. You'll get a welcome DM.</p>
+    </section>
+
+    <section class="how">
+      <h2>Why hide the aggregate?</h2>
+      <p>
+        The standard prediction market shows everyone the live consensus. That's a feature in finance and a bug at work. People anchor to the leader's view, conform to the loudest voice, and the signal you wanted — what your team actually believes — gets eaten by the meta-game of guessing what everyone else thinks.
+      </p>
+      <p>
+        Hunch hides the aggregate until the market resolves. Each person commits their own belief, in coins, in private. The truth shows up at resolution — along with who was right.
+      </p>
+    </section>
+
+    <section class="features">
+      <h2>What you get</h2>
+      <ul>
+        <li><strong>Anonymous bets.</strong> No one — not your manager, not the question's creator — sees who bet what.</li>
+        <li><strong>Aggregate hidden until resolution.</strong> No anchoring. No information cascades.</li>
+        <li><strong>Play money, real signal.</strong> Everyone starts with 10,000 coins. Winners take from losers when a market resolves.</li>
+        <li><strong>Workspace admins see the aggregate live</strong> — that's the leader's view of what the team really thinks.</li>
+        <li><strong>Two clicks to install.</strong> Slash command interface. No accounts to create.</li>
+      </ul>
+    </section>
+
+    <section class="faq">
+      <h2>FAQ</h2>
+
+      <h3>Are bets really anonymous?</h3>
+      <p>
+        Yes. The system records who bet what (so we can pay you out when you're right) but no UI surfaces it. Nothing in <code>/hunch admin</code>, the channel card, or the resolution post identifies individual bettors. Only the aggregate.
+      </p>
+
+      <h3>What does the workspace admin see?</h3>
+      <p>
+        Admins (and the question's creator) see the live aggregate — the team's current YES probability — through <code>/hunch admin</code>. They never see who voted which way. That's the trust boundary the product is built around.
+      </p>
+
+      <h3>Is this gambling?</h3>
+      <p>
+        No. Hunch uses play money. Coins have no cash value, can't be cashed out, and don't transfer between workspaces.
+      </p>
+
+      <h3>Where is my data stored?</h3>
+      <p>
+        On Hunch's servers, in Postgres. We store only what's needed to make the bot work: which workspace installed, who placed which bets, and which markets exist. No message content, no DMs, no user emails.
+      </p>
+
+      <h3>Can I self-host it?</h3>
+      <p>
+        Yes — the source is <a href="https://github.com/mitch-schneider-1/hunch">on GitHub</a>. README has the steps.
+      </p>
+    </section>
+
+    <footer>
+      <p>Built by <a href="https://twitter.com/mitch_schneider">@mitch_schneider</a>. Questions: <a href="mailto:hunch@mitchelschneider.com">hunch@mitchelschneider.com</a>.</p>
+    </footer>
+  </main>
+</body>
+</html>

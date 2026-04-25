@@ -225,6 +225,9 @@ export function buildBetConfirmation(args: {
     CONTEXT(
       `Check back after *${fmtDate(args.deadline)}* to see how you did.`
     ),
+    CONTEXT(
+      `🔒 Your bet is anonymous. The creator and your teammates only see the aggregate after resolution.`
+    ),
   ];
 }
 
@@ -321,8 +324,8 @@ export function buildResolutionCard(args: {
       type: "header",
       text: {
         type: "plain_text",
-        text: `Resolved: ${args.outcome}`,
-        emoji: false,
+        text: `🎉 Resolved: ${args.outcome}`,
+        emoji: true,
       },
     },
     SECTION(`*${args.question}*`),
@@ -333,6 +336,32 @@ export function buildResolutionCard(args: {
       } weighed in. The final aggregated forecast was *${pct(args.finalProbability)} YES*. ${calibrationNote}`
     ),
     CONTEXT(`Run \`/hunch me\` to see your P&L on this one.`),
+  ];
+}
+
+/**
+ * Personal DM sent to each winner the moment a market resolves. The aha
+ * moment of the product — they bet, they were right, they got paid.
+ * Shows take-home in coins + new total. No price/probability disclosure
+ * beyond what the resolution card already publishes.
+ */
+export function buildWinnerDm(args: {
+  question: string;
+  outcome: Side;
+  payout: number;
+  pnl: number;
+  newBalance: number;
+}): KnownBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "🎉 You called it.", emoji: true },
+    },
+    SECTION(`*${args.question}* resolved *${args.outcome}*. You were right.`),
+    SECTION(
+      `Take-home: *+${Math.round(args.pnl).toLocaleString()} coins*. New balance: *${args.newBalance.toLocaleString()}*.`
+    ),
+    CONTEXT(`Run \`/hunch me\` to see all your hunches.`),
   ];
 }
 
@@ -358,9 +387,21 @@ function sparkline(trend: number[]): string {
 export function buildAdminDashboard(rows: AdminMarketRow[]): KnownBlock[] {
   if (rows.length === 0) {
     return [
+      SECTION("*Admin view*"),
       SECTION(
-        "No open markets to show. Create one with `/hunch create`."
+        "No open markets right now. Once you (or anyone with admin) creates one, this view shows the aggregated YES probability and the trend over time — across every market in the workspace."
       ),
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            style: "primary",
+            text: { type: "plain_text", text: "Ask the team a question", emoji: false },
+            action_id: "welcome_create_blank",
+          },
+        ],
+      },
     ];
   }
 
@@ -392,7 +433,12 @@ export function buildLeaderboard(
   rows: Array<{ rank: number; slackUserId: string; score: number }>
 ): KnownBlock[] {
   if (rows.length === 0) {
-    return [SECTION("No one has played yet. Be the first.")];
+    return [
+      SECTION("*Leaderboard*"),
+      SECTION(
+        "No one has resolved any hunches yet. The leaderboard fills in as questions resolve and coins move. Run `/hunch create` to start one."
+      ),
+    ];
   }
 
   const lines = rows
@@ -412,10 +458,194 @@ export function buildLeaderboard(
 }
 
 // =============================================================================
+// HELP CARD — interactive entry point. /hunch with no args lands here.
+// =============================================================================
+
+/**
+ * Discoverable help card. Buttons (not just text) so a brand-new
+ * installer can click their way to the first useful action without
+ * memorizing slash syntax.
+ */
+export function buildHelpCard(): KnownBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "Hunch", emoji: false },
+    },
+    SECTION(
+      "Ask your team a question. They commit play-money coins to YES or NO. The aggregate stays hidden until the question resolves — that's what keeps it honest."
+    ),
+    DIVIDER,
+    SECTION("*What do you want to do?*"),
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          style: "primary",
+          text: { type: "plain_text", text: "Ask the team a question", emoji: false },
+          action_id: "welcome_create_blank",
+        },
+      ],
+    },
+    SECTION(
+      "Other commands:\n" +
+        "• `/hunch me` — your hunches and coins\n" +
+        "• `/hunch resolve` — close out a market you created (admins can resolve any)\n" +
+        "• `/hunch admin` — aggregated signal across your markets (admins see all)\n" +
+        "• `/hunch leaderboard` — top 10 by coin balance\n" +
+        "• `/hunch reset confirm` — workspace admin: reset all coins, void open markets"
+    ),
+    CONTEXT(
+      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 coins."
+    ),
+  ];
+}
+
+// =============================================================================
+// ONBOARDING — DM the installer + announce in #general on first install.
+// =============================================================================
+
+/**
+ * DM sent to the installer immediately after OAuth completes. The job of
+ * this card is to make the next step obvious: ask the team a question.
+ * Three sample-market quick-creates make the first market a one-click
+ * action; clicking any of them opens the create modal pre-filled.
+ */
+export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
+  return [
+    {
+      type: "header",
+      text: { type: "plain_text", text: "Welcome to Hunch.", emoji: false },
+    },
+    SECTION(
+      `Hi <@${installerSlackUserId}> — Hunch lets your team ask thoughtful, anonymous questions and see what people actually believe.`
+    ),
+    SECTION(
+      "*How it works.* Anyone asks a question. Your teammates commit play-money coins to YES or NO. When the question resolves, winners take coins from losers. The aggregate is hidden until resolution — that's what keeps it honest."
+    ),
+    DIVIDER,
+    SECTION("*Try one of these to start:*"),
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          style: "primary",
+          text: {
+            type: "plain_text",
+            text: "Will we ship X by Y?",
+            emoji: false,
+          },
+          action_id: "welcome_prefill",
+          value: "ship_by_date",
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "Will we hit our quarterly target?",
+            emoji: false,
+          },
+          action_id: "welcome_prefill",
+          value: "quarterly_target",
+        },
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "Will [external thing] happen by [date]?",
+            emoji: false,
+          },
+          action_id: "welcome_prefill",
+          value: "external_event",
+        },
+      ],
+    },
+    SECTION("Or write your own question:"),
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "Ask anything",
+            emoji: false,
+          },
+          action_id: "welcome_create_blank",
+        },
+      ],
+    },
+    DIVIDER,
+    CONTEXT(
+      "🔒 Bets are anonymous. Aggregates show only after resolution. Everyone starts with 10,000 coins."
+    ),
+    CONTEXT(
+      "Run `/hunch help` any time to see all commands."
+    ),
+  ];
+}
+
+/**
+ * Posted to the workspace's #general so teammates discover the bot.
+ * Lower-key than the installer DM — short, points at the slash command.
+ */
+export function buildChannelAnnouncement(
+  installerSlackUserId: string | undefined
+): KnownBlock[] {
+  const lead = installerSlackUserId
+    ? `<@${installerSlackUserId}> just installed *Hunch*.`
+    : "*Hunch* is here.";
+  return [
+    SECTION(
+      `${lead} It's a way to ask the team a question and see what people actually believe — anonymously.`
+    ),
+    SECTION(
+      "Try `/hunch create` to ask one. Try `/hunch me` to see your coins. Everyone starts with 10,000."
+    ),
+    CONTEXT(
+      "Run `/hunch help` for the full command list."
+    ),
+  ];
+}
+
+// =============================================================================
 // CREATE-MARKET MODAL
 // =============================================================================
 
-export function buildCreateMarketModal(): import("@slack/bolt").View {
+export interface CreateMarketPrefill {
+  question?: string;
+  criteria?: string;
+  deadline?: string; // YYYY-MM-DD
+}
+
+/**
+ * Sample-market prefills used by the welcome DM quick-create buttons.
+ * Keep these short, generic, and recognizable; the user is expected to
+ * edit them before submitting.
+ */
+export const CREATE_MARKET_TEMPLATES: Record<string, CreateMarketPrefill> = {
+  ship_by_date: {
+    question: "Will we ship [feature] by [date]?",
+    criteria:
+      "Resolves YES if it's deployed to production users before the deadline. NO otherwise.",
+  },
+  quarterly_target: {
+    question: "Will we hit our quarterly target this quarter?",
+    criteria:
+      "Resolves YES if we close the quarter at or above the target number. The number to compare against: [target].",
+  },
+  external_event: {
+    question: "Will [external thing] happen by [date]?",
+    criteria:
+      "Resolves YES if [the named thing] is publicly confirmed before the deadline. NO otherwise.",
+  },
+};
+
+export function buildCreateMarketModal(
+  prefill: CreateMarketPrefill = {}
+): import("@slack/bolt").View {
   return {
     type: "modal",
     callback_id: "submit_create_market",
@@ -431,6 +661,7 @@ export function buildCreateMarketModal(): import("@slack/bolt").View {
           type: "plain_text_input",
           action_id: "question_input",
           max_length: 140,
+          ...(prefill.question ? { initial_value: prefill.question } : {}),
           placeholder: {
             type: "plain_text",
             text: "Will we ship the mobile app by end of Q3?",
@@ -449,6 +680,7 @@ export function buildCreateMarketModal(): import("@slack/bolt").View {
           type: "plain_text_input",
           action_id: "criteria_input",
           multiline: true,
+          ...(prefill.criteria ? { initial_value: prefill.criteria } : {}),
           placeholder: {
             type: "plain_text",
             text: "Resolves YES if v1.0 is submitted to the App Store before Sep 30.",
@@ -466,6 +698,7 @@ export function buildCreateMarketModal(): import("@slack/bolt").View {
         element: {
           type: "datepicker",
           action_id: "deadline_input",
+          ...(prefill.deadline ? { initial_date: prefill.deadline } : {}),
         },
       },
       {
