@@ -617,7 +617,7 @@ export function buildChannelAnnouncement(
 export interface CreateMarketPrefill {
   question?: string;
   criteria?: string;
-  deadline?: string; // YYYY-MM-DD
+  deadline?: number; // Unix timestamp in seconds
 }
 
 /**
@@ -696,9 +696,9 @@ export function buildCreateMarketModal(
           emoji: false,
         },
         element: {
-          type: "datepicker",
+          type: "datetimepicker",
           action_id: "deadline_input",
-          ...(prefill.deadline ? { initial_date: prefill.deadline } : {}),
+          ...(prefill.deadline ? { initial_date_time: prefill.deadline } : {}),
         },
       },
       {

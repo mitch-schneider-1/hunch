@@ -53,16 +53,16 @@ export function registerCreateMarket(app: App): void {
     const values = view.state.values;
     const question = values.question_block?.question_input?.value?.trim();
     const criteria = values.criteria_block?.criteria_input?.value?.trim();
-    const deadlineStr = values.deadline_block?.deadline_input?.selected_date;
+    const deadlineEpochSec = values.deadline_block?.deadline_input?.selected_date_time;
     const channelId = values.channel_block?.channel_input?.selected_conversation;
 
     const errors: Record<string, string> = {};
     if (!question) errors.question_block = "Add a question.";
     if (!criteria) errors.criteria_block = "Tell people how this resolves.";
-    if (!deadlineStr) errors.deadline_block = "Pick a deadline.";
+    if (!deadlineEpochSec) errors.deadline_block = "Pick a deadline.";
     if (!channelId) errors.channel_block = "Pick a channel.";
-    if (deadlineStr) {
-      const d = new Date(`${deadlineStr}T23:59:59Z`);
+    if (deadlineEpochSec) {
+      const d = new Date(deadlineEpochSec * 1000);
       if (d.getTime() < Date.now()) {
         errors.deadline_block = "Deadline must be in the future.";
       }
@@ -76,7 +76,7 @@ export function registerCreateMarket(app: App): void {
       return;
     }
 
-    const deadline = new Date(`${deadlineStr}T23:59:59Z`);
+    const deadline = new Date(deadlineEpochSec! * 1000);
     const workspace = await getWorkspaceByTeamId(body.team?.id);
 
     try {
