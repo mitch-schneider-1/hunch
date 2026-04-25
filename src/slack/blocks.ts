@@ -537,7 +537,7 @@ export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
             text: "Will we ship X by Y?",
             emoji: false,
           },
-          action_id: "welcome_prefill",
+          action_id: "welcome_prefill_ship_by_date",
           value: "ship_by_date",
         },
         {
@@ -547,7 +547,7 @@ export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
             text: "Will we hit our quarterly target?",
             emoji: false,
           },
-          action_id: "welcome_prefill",
+          action_id: "welcome_prefill_quarterly_target",
           value: "quarterly_target",
         },
         {
@@ -557,7 +557,7 @@ export function buildWelcomeDm(installerSlackUserId: string): KnownBlock[] {
             text: "Will [external thing] happen by [date]?",
             emoji: false,
           },
-          action_id: "welcome_prefill",
+          action_id: "welcome_prefill_external_event",
           value: "external_event",
         },
       ],

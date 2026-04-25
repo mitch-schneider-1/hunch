@@ -36,7 +36,7 @@ export function registerCreateMarket(app: App): void {
   });
 
   // Welcome DM sample-market quick-creates → open the modal pre-filled.
-  app.action({ action_id: "welcome_prefill" }, async ({ ack, body, client, action }) => {
+  app.action(/^welcome_prefill_/, async ({ ack, body, client, action }) => {
     await ack();
     if (body.type !== "block_actions" || !body.trigger_id) return;
     if (action.type !== "button") return;
