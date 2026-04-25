@@ -1,0 +1,201 @@
+:root {
+  --fg: #111;
+  --muted: #888;
+  --link: #111;
+  --rule: #ececec;
+  --code-bg: #f5f5f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 96px 32px 120px;
+}
+
+header {
+  margin-bottom: 72px;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+  color: #c9c9c9;
+}
+
+.tagline {
+  font-size: 16px;
+  color: var(--fg);
+  margin: 0;
+  max-width: 32em;
+}
+
+section {
+  margin-bottom: 56px;
+}
+
+.label {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  font-weight: 400;
+}
+
+p {
+  margin: 0 0 14px;
+  color: var(--fg);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px 48px;
+}
+
+.grid p {
+  margin: 0;
+  max-width: 32em;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 48px;
+}
+
+.steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  max-width: 32em;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  transform: translateY(2px);
+}
+
+.step-text {
+  flex: 1;
+}
+
+.step-text strong {
+  font-weight: 600;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+
+a:hover {
+  text-decoration-color: var(--fg);
+}
+
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.install {
+  margin-top: 80px;
+  margin-bottom: 56px;
+}
+
+.install-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  color: var(--fg);
+  padding: 12px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.install-button:hover {
+  border-color: var(--fg);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.install-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.install-note {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 32em;
+}
+
+footer {
+  margin-top: 80px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+footer a {
+  color: var(--muted);
+}
+
+footer a:hover {
+  color: var(--fg);
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 56px 24px 80px;
+  }
+  header {
+    margin-bottom: 56px;
+  }
+  .grid,
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}

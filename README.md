@@ -6,29 +6,33 @@ LMSR underneath. Thoughtful poll on the surface.
 
 ## What it is (and isn't)
 
-It is a forecasting tool. People ask questions ("Will we ship the mobile app by end of Q3?"), the team commits play-money coins to YES or NO, and leaders see what the crowd actually believes.
+It is a forecasting tool. People ask questions ("Will we ship the mobile app by end of Q3?"), the team commits play-money hunches to YES or NO, and leaders see what the crowd actually believes.
 
-It is **not** a trading platform. Participants never see the live aggregate probability — that prevents anchoring and information cascades. There is no order book, no live ticker, no leverage, no real money. Coins are a calibration mechanism, not a currency.
+It is **not** a trading platform. Participants never see the live aggregate probability — that prevents anchoring and information cascades. There is no order book, no live ticker, no leverage, no real money. Hunches are a calibration mechanism, not a currency.
 
-## Setup
+## Just want to install it?
+
+Hunch is a hosted multi-tenant Slack app. Install it directly from the landing page — no setup, no env vars. Self-hosting is for forks and contributors.
+
+## Self-hosting
+
+Hunch runs as a single multi-tenant HTTP-mode Bolt app. One deployment serves N workspaces; each workspace's bot token lives in the database, not env. You'll need a public HTTPS URL for the OAuth callback.
 
 ### 1. Create the Slack app
 
-Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest** → paste the contents of [`slack/manifest.json`](./slack/manifest.json).
+Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From an app manifest** → paste the contents of [`slack/manifest.json`](./slack/manifest.json). Update the `redirect_urls`, `request_url`, and event subscription URL to point at your deployment (e.g. `https://your-domain/slack/oauth_redirect` and `https://your-domain/slack/events`).
 
-Then, under **Basic Information**:
+Under **Basic Information** copy these into your env:
 
-- Generate an **App-Level Token** with the `connections:write` scope. Copy it as `SLACK_APP_TOKEN` (starts with `xapp-`).
-
-Under **OAuth & Permissions** → **Install to Workspace**. Authorize. Copy the bot token as `SLACK_BOT_TOKEN` (starts with `xoxb-`).
-
-Under **Basic Information** → **Signing Secret** → copy as `SLACK_SIGNING_SECRET`.
+- `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`
+- `SLACK_SIGNING_SECRET`
+- `SLACK_STATE_SECRET` — any random 32+ char string
 
 ### 2. Configure environment
 
 ```bash
 cp .env.example .env
-# Edit .env with the three Slack values above and a Postgres DATABASE_URL
+# Fill in the four SLACK_* values above and a Postgres DATABASE_URL
 ```
 
 A free Supabase or Railway Postgres is enough. For local dev:
@@ -40,12 +44,14 @@ createdb hunch
 # Set DATABASE_URL=postgresql://localhost:5432/hunch in .env
 ```
 
+For local OAuth testing, point Slack's redirect URL at an ngrok tunnel.
+
 ### 3. Migrate
 
 ```bash
 npm install
 npx prisma generate
-npx prisma db push   # syncs schema to your DB (MVP — switch to migrate dev once you have prod data)
+npx prisma db push   # syncs schema to your DB
 ```
 
 ### 4. Run
@@ -54,18 +60,18 @@ npx prisma db push   # syncs schema to your DB (MVP — switch to migrate dev on
 npm run dev
 ```
 
-You should see `hunch is up — port=3000 socket=true` and a welcome message in your workspace's `#general`.
+You should see `hunch is up — port=3000`. Visit `/slack/install` to install into a workspace.
 
 ## Commands
 
 | Command | Who | What it does |
 |---|---|---|
 | `/hunch create` | anyone | open the create-market modal |
-| `/hunch me` | anyone | your coin balance, open and resolved hunches, all-time P&L |
+| `/hunch me` | anyone | your hunch balance, open and resolved bets, all-time P&L |
 | `/hunch resolve` | creator or workspace admin | pick a market and resolve it YES or NO |
 | `/hunch resolve <id> <yes\|no>` | creator or workspace admin | resolve directly without the picker |
 | `/hunch admin` | creator or workspace admin | aggregated probability and trend across your markets |
-| `/hunch leaderboard` | anyone | top 10 by coin score |
+| `/hunch leaderboard` | anyone | top 10 by hunch score |
 | `/hunch reset confirm` | workspace admin only | reset everyone to 10K and void open markets |
 | `/hunch help` | anyone | command list |
 
@@ -77,14 +83,15 @@ A `Dockerfile` is included. It runs `prisma migrate deploy` on boot.
 docker build -t hunch .
 docker run --rm \
   -e DATABASE_URL=... \
-  -e SLACK_BOT_TOKEN=... \
+  -e SLACK_CLIENT_ID=... \
+  -e SLACK_CLIENT_SECRET=... \
   -e SLACK_SIGNING_SECRET=... \
-  -e SLACK_APP_TOKEN=... \
-  -e SLACK_SOCKET_MODE=true \
+  -e SLACK_STATE_SECRET=... \
+  -e SENTRY_DSN=... \
   -p 3000:3000 hunch
 ```
 
-Deploy to Railway or Fly.io with the same env vars. Socket Mode is recommended (no public HTTP endpoint required).
+Deploy to Railway or Fly.io. Public HTTPS is required for OAuth. Set the redirect and event URLs in the Slack app dashboard to match your deployed domain.
 
 ## What's in this repo
 
@@ -116,4 +123,4 @@ See [`docs/architecture.md`](./docs/architecture.md) for the full data model and
 - LMSR is the mechanism. The math is exact, no approximations.
 - The internal market price exists. It is shown only to admins and market creators in `/hunch admin`, and to everyone in the resolution card.
 - Anonymity is absolute everywhere except the leaderboard (usernames + scores only — no bet history).
-- Each user gets 10,000 coins on first interaction. No replenishment. Going broke is part of the calibration mechanism.
+- Each user gets 10,000 hunches on first interaction. No replenishment. Going broke is part of the calibration mechanism.

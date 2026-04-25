@@ -3,7 +3,7 @@
     "name": "Hunch",
     "description": "Ask your team thoughtful, anonymous questions. See what people actually believe.",
     "background_color": "#1a1a1a",
-    "long_description": "Hunch is a forecasting tool for your team. Ask a question (a launch date, a hire, a target), let people commit play-money coins to YES or NO, and see the aggregated signal as a leader. Participants never see the crowd's probability — that prevents anchoring and information cascades. Anonymity is absolute: no one ever sees who bet what."
+    "long_description": "Hunch is a forecasting tool for your team. Ask a question (a launch date, a hire, a target), let people commit play-money hunches to YES or NO, and see the aggregated signal as a leader. Participants never see the crowd's probability — that prevents anchoring and information cascades. Anonymity is absolute: no one ever sees who bet what."
   },
   "features": {
     "bot_user": {
@@ -13,6 +13,7 @@
     "slash_commands": [
       {
         "command": "/hunch",
+        "url": "https://app.hunchpredictions.com/slack/events",
         "description": "Ask, weigh in, resolve. Run `/hunch help` for subcommands.",
         "usage_hint": "create | me | resolve | admin | leaderboard | reset",
         "should_escape": false
@@ -20,6 +21,9 @@
     ]
   },
   "oauth_config": {
+    "redirect_urls": [
+      "https://app.hunchpredictions.com/slack/oauth_redirect"
+    ],
     "scopes": {
       "bot": [
         "chat:write",
@@ -36,15 +40,17 @@
   },
   "settings": {
     "event_subscriptions": {
+      "request_url": "https://app.hunchpredictions.com/slack/events",
       "bot_events": [
         "app_uninstalled"
       ]
     },
     "interactivity": {
-      "is_enabled": true
+      "is_enabled": true,
+      "request_url": "https://app.hunchpredictions.com/slack/events"
     },
     "org_deploy_enabled": false,
-    "socket_mode_enabled": true,
+    "socket_mode_enabled": false,
     "token_rotation_enabled": false
   }
 }

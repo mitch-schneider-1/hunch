@@ -1,14 +1,15 @@
-import type { App, RespondFn } from "@slack/bolt";
+import type { RespondFn } from "@slack/bolt";
+import type { WebClient } from "@slack/web-api";
 import { prisma } from "../db";
 import { buildLeaderboard } from "../slack/blocks";
-import { getWorkspace } from "../slack/workspace";
+import { getWorkspaceByTeamId } from "../slack/workspace";
 
 export async function handleLeaderboard(
-  _app: App,
-  _body: { user_id: string },
+  _client: WebClient,
+  body: { user_id: string; team_id: string },
   respond: RespondFn
 ): Promise<void> {
-  const workspace = await getWorkspace();
+  const workspace = await getWorkspaceByTeamId(body.team_id);
 
   // Score = liquid balance + sum of open commitments at cost.
   // This equals (starting coins + resolved-market P&L) — anonymizes positions

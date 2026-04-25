@@ -6,17 +6,34 @@ import { handleResolveCommand, registerResolve } from "../handlers/resolve";
 import { handleAdminCommand } from "../handlers/admin";
 import { handleLeaderboard } from "../handlers/leaderboard";
 import { handleResetCommand } from "../handlers/reset";
+import { installationStore } from "./install-store";
+import { logEvent } from "../observability/events";
+import { getWorkspaceByTeamId } from "./workspace";
 
 export function buildApp(): App {
-  const useSocketMode = process.env.SLACK_SOCKET_MODE === "true";
   const logLevel =
     (process.env.LOG_LEVEL as LogLevel | undefined) ?? LogLevel.INFO;
 
+  // HTTP-mode OAuth Bolt app. Tokens come from the per-workspace
+  // installationStore, not from process env.
   const app = new App({
-    token: process.env.SLACK_BOT_TOKEN!,
+    clientId: process.env.SLACK_CLIENT_ID!,
+    clientSecret: process.env.SLACK_CLIENT_SECRET!,
     signingSecret: process.env.SLACK_SIGNING_SECRET!,
-    socketMode: useSocketMode,
-    appToken: useSocketMode ? process.env.SLACK_APP_TOKEN : undefined,
+    stateSecret: process.env.SLACK_STATE_SECRET!,
+    scopes: [
+      "channels:read",
+      "chat:write",
+      "chat:write.public",
+      "commands",
+      "groups:read",
+      "im:write",
+      "users:read",
+    ],
+    installationStore,
+    installerOptions: {
+      directInstall: true,
+    },
     logLevel,
   });
 
@@ -34,56 +51,63 @@ function registerSlashRouter(app: App): void {
     await ack();
     const text = command.text?.trim() ?? "";
     const sub = text.split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+    const teamId = command.team_id;
+
+    // Best-effort workspace lookup for analytics. Doesn't block the command.
+    void recordCommand(teamId, command.user_id, sub || "help_default");
 
     try {
       switch (sub) {
-        case "create":
         case "":
-          // No subcommand → open the create modal.
+        case "help":
+          // No subcommand or explicit help → interactive help card with
+          // a primary "Ask the team a question" button.
+          await respond({
+            response_type: "ephemeral",
+            text: "Hunch help",
+            blocks: (await import("./blocks")).buildHelpCard(),
+          });
+          return;
+        case "create":
           await client.views.open({
             trigger_id: command.trigger_id,
             view: (await import("./blocks")).buildCreateMarketModal(),
           });
           return;
         case "me":
-          await handleMe(app, command, respond);
+          await handleMe(
+            client,
+            { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id },
+            respond
+          );
           return;
         case "resolve":
           await handleResolveCommand(
-            app,
-            { user_id: command.user_id, channel_id: command.channel_id, text },
+            client,
+            { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id, text },
             respond
           );
           return;
         case "admin":
           await handleAdminCommand(
-            app,
-            { user_id: command.user_id, channel_id: command.channel_id },
+            client,
+            { user_id: command.user_id, team_id: teamId, channel_id: command.channel_id },
             respond
           );
           return;
         case "leaderboard":
-          await handleLeaderboard(app, { user_id: command.user_id }, respond);
-          return;
-        case "reset":
-          await handleResetCommand(
-            app,
-            { user_id: command.user_id, text },
+          await handleLeaderboard(
+            client,
+            { user_id: command.user_id, team_id: teamId },
             respond
           );
           return;
-        case "help":
-          await respond({
-            response_type: "ephemeral",
-            text:
-              "*Hunch commands*\n" +
-              "• `/hunch create` — ask the team a question\n" +
-              "• `/hunch me` — your hunches and coins\n" +
-              "• `/hunch resolve` — resolve a market you created (admins can resolve any)\n" +
-              "• `/hunch admin` — aggregated signal across your markets (admins see all)\n" +
-              "• `/hunch leaderboard` — top 10 by coin balance\n" +
-              "• `/hunch reset confirm` — workspace admin: reset all coins, void open markets",
-          });
+        case "reset":
+          await handleResetCommand(
+            client,
+            { user_id: command.user_id, team_id: teamId, text },
+            respond
+          );
           return;
         default:
           await respond({
@@ -100,4 +124,21 @@ function registerSlashRouter(app: App): void {
       console.error("slash command failed", err);
     }
   });
+}
+
+async function recordCommand(
+  teamId: string,
+  slackUserId: string,
+  sub: string
+): Promise<void> {
+  try {
+    const ws = await getWorkspaceByTeamId(teamId);
+    await logEvent(ws.id, "command_used", {
+      userId: slackUserId,
+      metadata: { sub },
+    });
+  } catch (err) {
+    // Workspace might not exist yet (first install race). Swallow.
+    console.error("recordCommand failed", { teamId, sub, err });
+  }
 }
