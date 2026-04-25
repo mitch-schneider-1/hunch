@@ -27,12 +27,22 @@ const CONTEXT = (text: string): KnownBlock => ({
 });
 
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
+  // Use Slack's date-format token so each viewer sees the deadline in
+  // their own timezone. The fallback (after `|`) is what Slack shows
+  // if it can't render — and what unit tests / non-Slack surfaces see.
+  const epochSec = Math.floor(d.getTime() / 1000);
+  const fallback = d.toLocaleString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "UTC",
+    timeZoneName: "short",
   });
+  return `<!date^${epochSec}^{date_long} at {time}|${fallback}>`;
 }
 
 function pct(p: number): string {
