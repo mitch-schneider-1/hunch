@@ -16,6 +16,15 @@ export function buildApp(): App {
 
   // HTTP-mode OAuth Bolt app. Tokens come from the per-workspace
   // installationStore, not from process env.
+  // PUBLIC_URL pins the OAuth redirect to our public hostname so the state
+  // cookie domain matches the callback domain. Without this, Bolt derives
+  // the redirect from the request host header, which on Railway can resolve
+  // to the internal *.up.railway.app hostname and break state validation.
+  const publicUrl = process.env.PUBLIC_URL?.replace(/\/$/, "");
+  const redirectUri = publicUrl
+    ? `${publicUrl}/slack/oauth_redirect`
+    : undefined;
+
   const app = new App({
     clientId: process.env.SLACK_CLIENT_ID!,
     clientSecret: process.env.SLACK_CLIENT_SECRET!,
@@ -31,8 +40,10 @@ export function buildApp(): App {
       "users:read",
     ],
     installationStore,
+    redirectUri,
     installerOptions: {
       directInstall: true,
+      redirectUriPath: "/slack/oauth_redirect",
     },
     logLevel,
   });
