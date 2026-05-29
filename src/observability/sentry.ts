@@ -15,6 +15,16 @@ export function initSentry(): void {
     dsn,
     environment: process.env.NODE_ENV ?? "development",
     tracesSampleRate: 0,
+    // Defense in depth: never let a Slack token reach Sentry. Bolt errors
+    // can carry token-bearing context; scrub anything that looks like an
+    // xoxb-/xoxp-/xapp-/xoxe- token from the serialized event.
+    beforeSend(event) {
+      const scrubbed = JSON.stringify(event).replace(
+        /xox[abpres]-[A-Za-z0-9-]+/g,
+        "[REDACTED-SLACK-TOKEN]"
+      );
+      return JSON.parse(scrubbed);
+    },
   });
   initialized = true;
   console.log("sentry: initialized");

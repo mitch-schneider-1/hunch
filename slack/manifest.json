@@ -30,11 +30,9 @@
         "chat:write.public",
         "commands",
         "users:read",
-        "users:read.email",
         "channels:read",
         "groups:read",
-        "im:write",
-        "team:read"
+        "im:write"
       ]
     }
   },
