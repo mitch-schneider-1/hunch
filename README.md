@@ -111,10 +111,20 @@ prisma/schema.prisma   # data model
 ## Tests
 
 ```bash
-npm test
+npm test          # unit tests — no database required
+npm run typecheck # tsc --noEmit, catches type errors
 ```
 
-Covers LMSR math (price, cost, shares-for-coins inverse, payout) and the load-bearing anonymity invariant: the participant-facing market card must never contain the word "probability", "price", "odds", or any percentage.
+`npm test` covers LMSR math (price, cost, shares-for-coins inverse, payout) and the load-bearing anonymity invariant: the participant-facing market card must never contain the word "probability", "price", "odds", or any percentage.
+
+The multi-tenant trust-boundary suite (`tests/multitenancy.test.ts`) verifies that one workspace can never read another's data. It needs a real Postgres and **skips automatically unless `TEST_DATABASE_URL` is set**:
+
+```bash
+# Point at a throwaway database — the suite writes and deletes test rows.
+TEST_DATABASE_URL=postgresql://localhost:5432/hunch_test npm test
+```
+
+CI runs this on every push and pull request (see `.github/workflows/test.yml`), so the isolation guarantee is enforced before any merge.
 
 ## Design notes
 
