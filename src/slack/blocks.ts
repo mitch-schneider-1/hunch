@@ -155,9 +155,11 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
       {
         type: "input",
         block_id: "side_block",
+        // Slack requires a label on input blocks, so this is kept minimal —
+        // the radio options ("YES — it will happen" / "NO — …") carry the meaning.
         label: {
           type: "plain_text",
-          text: "Which side do you think will happen?",
+          text: "Pick a side",
           emoji: false,
         },
         element: {
