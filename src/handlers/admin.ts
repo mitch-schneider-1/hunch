@@ -1,11 +1,13 @@
 import type { RespondFn } from "@slack/bolt";
 import type { WebClient } from "@slack/web-api";
+import { Side } from "@prisma/client";
 import { prisma } from "../db";
 import { priceYes } from "../market/lmsr";
 import { buildAdminDashboard, type AdminMarketRow } from "../slack/blocks";
 import { ensureUser, getWorkspaceByTeamId, refreshAdminStatus } from "../slack/workspace";
 
 const MAX_TREND_POINTS = 8;
+const MAX_RATIONALES_SHOWN = 8;
 
 export async function handleAdminCommand(
   client: WebClient,
@@ -25,7 +27,8 @@ export async function handleAdminCommand(
       ...(user.isAdmin ? {} : { creatorUserId: user.id }),
     },
     include: {
-      bets: { select: { side: true } },
+      // Need stakes (concentration), userId (distinct bettors), and rationale.
+      bets: { select: { side: true, coinsCommitted: true, userId: true, rationale: true } },
       priceSnapshots: {
         select: { probability: true, recordedAt: true },
         orderBy: { recordedAt: "asc" },
@@ -35,22 +38,45 @@ export async function handleAdminCommand(
   });
 
   const rows: AdminMarketRow[] = markets.map((m) => {
-    const yesCount = m.bets.filter((b) => b.side === "YES").length;
-    const noCount = m.bets.filter((b) => b.side === "NO").length;
+    const distinctBettors = new Set(m.bets.map((b) => b.userId)).size;
 
-    // Downsample snapshots to MAX_TREND_POINTS evenly spaced points so
-    // the sparkline doesn't blow out for popular markets.
-    const snaps = m.priceSnapshots.map((s) => s.probability);
-    const trend = downsample(snaps, MAX_TREND_POINTS);
+    let yesStake = 0;
+    let noStake = 0;
+    const stakeByUser = new Map<string, number>();
+    for (const bt of m.bets) {
+      if (bt.side === "YES") yesStake += bt.coinsCommitted;
+      else noStake += bt.coinsCommitted;
+      stakeByUser.set(bt.userId, (stakeByUser.get(bt.userId) ?? 0) + bt.coinsCommitted);
+    }
+    const totalStake = yesStake + noStake;
+    const topUserStake = stakeByUser.size > 0 ? Math.max(...stakeByUser.values()) : 0;
+    const topUserShare = totalStake > 0 ? topUserStake / totalStake : 0;
+
+    // Shuffle so the order of rationales doesn't correlate with bet timing
+    // (which would otherwise be a weak de-anonymization channel).
+    const rationales = shuffle(
+      m.bets
+        .filter((b): b is typeof b & { rationale: string } => Boolean(b.rationale))
+        .map((b) => ({ side: b.side as Side, text: b.rationale }))
+    ).slice(0, MAX_RATIONALES_SHOWN);
+
+    const trend = downsample(
+      m.priceSnapshots.map((s) => s.probability),
+      MAX_TREND_POINTS
+    );
 
     return {
       id: m.id,
       question: m.question,
       deadline: m.deadline,
-      yesCount,
-      noCount,
+      distinctBettors,
       currentProbability: priceYes(m.qYes, m.qNo, m.b),
       trend,
+      yesStake,
+      noStake,
+      topUserShare,
+      creatorPrior: m.creatorPrior,
+      rationales,
     };
   });
 
@@ -67,6 +93,16 @@ function downsample(arr: number[], k: number): number[] {
   for (let i = 0; i < k; i += 1) {
     const idx = Math.floor((i * (arr.length - 1)) / (k - 1));
     out.push(arr[idx]);
+  }
+  return out;
+}
+
+// Fisher-Yates. Used only to decorrelate rationale order from bet order.
+function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
 }

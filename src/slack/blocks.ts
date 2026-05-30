@@ -14,6 +14,10 @@
 import type { KnownBlock } from "@slack/bolt";
 import { Side } from "@prisma/client";
 import { MAX_RATIONALE_LENGTH } from "../guards/abuse";
+import {
+  CONCENTRATION_FLAG_THRESHOLD,
+  MIN_BETTORS_FOR_DETAIL,
+} from "../guards/anonymity";
 
 const SECTION = (text: string): KnownBlock => ({
   type: "section",
@@ -377,10 +381,14 @@ export interface AdminMarketRow {
   id: string;
   question: string;
   deadline: Date;
-  yesCount: number;
-  noCount: number;
-  currentProbability: number;
+  distinctBettors: number;
+  currentProbability: number; // YES probability
   trend: number[]; // chronological YES probability snapshots
+  yesStake: number; // hunches committed to YES
+  noStake: number; // hunches committed to NO
+  topUserShare: number; // largest single participant's share of total stake, 0–1
+  creatorPrior: number | null; // creator's own YES probability, if they set one
+  rationales: Array<{ side: Side; text: string }>; // anonymous, pre-shuffled, pre-capped
 }
 
 function sparkline(trend: number[]): string {
@@ -388,12 +396,24 @@ function sparkline(trend: number[]): string {
   return trend.map((p) => pct(p)).join(" → ");
 }
 
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+/**
+ * Admin/exec dashboard. Aggregated signal only — never individual identities.
+ *
+ * Anonymity gate: a market with fewer than MIN_BETTORS_FOR_DETAIL distinct
+ * bettors shows NOTHING but a "breakdown pending" line. Below that threshold,
+ * the aggregate + stake split + a single large position would let an admin who
+ * knows a small team infer who bet which side.
+ */
 export function buildAdminDashboard(rows: AdminMarketRow[]): KnownBlock[] {
   if (rows.length === 0) {
     return [
       SECTION("*Admin view*"),
       SECTION(
-        "No open markets right now. Once you (or anyone with admin) creates one, this view shows the aggregated YES probability and the trend over time — across every market in the workspace."
+        "No open markets right now. Once you (or anyone with admin) creates one, this view shows the team's aggregated YES probability, how it compares to your own call, and the trend over time."
       ),
       {
         type: "actions",
@@ -415,14 +435,69 @@ export function buildAdminDashboard(rows: AdminMarketRow[]): KnownBlock[] {
   ];
 
   for (const r of rows) {
+    if (r.distinctBettors < MIN_BETTORS_FOR_DETAIL) {
+      blocks.push(SECTION(`*${r.question}*`));
+      blocks.push(
+        CONTEXT(
+          `Breakdown appears once *${MIN_BETTORS_FOR_DETAIL}* people have weighed in (${r.distinctBettors}/${MIN_BETTORS_FOR_DETAIL}) — keeps individual bets anonymous.`
+        )
+      );
+      blocks.push(DIVIDER);
+      continue;
+    }
+
     blocks.push(
       SECTION(
-        `*${r.question}*\nResolves ${fmtDate(r.deadline)}  ·  Aggregate: *${pct(
+        `*${r.question}*\nResolves ${fmtDate(r.deadline)}  ·  Team: *${pct(
           r.currentProbability
-        )} YES*  ·  ${r.yesCount} YES bets, ${r.noCount} NO bets`
+        )} YES*  ·  ${r.distinctBettors} people`
       )
     );
+
+    // Creator prior vs team.
+    if (r.creatorPrior != null) {
+      const diff = Math.round((r.creatorPrior - r.currentProbability) * 100);
+      const gap =
+        diff > 0
+          ? `you're +${diff} pts more bullish`
+          : diff < 0
+            ? `you're ${diff} pts more bearish`
+            : "dead on with the team";
+      blocks.push(
+        CONTEXT(
+          `Your call: *${pct(r.creatorPrior)} YES*  ·  Team: *${pct(r.currentProbability)}*  ·  ${gap}`
+        )
+      );
+    }
+
+    // Stake-weighted split (replaces raw counts — counts were the de-anon vector).
+    const totalStake = r.yesStake + r.noStake;
+    const yesShare = totalStake > 0 ? r.yesStake / totalStake : 0;
+    blocks.push(
+      CONTEXT(
+        `Stake: *${pct(yesShare)} YES / ${pct(1 - yesShare)} NO*  ·  ${totalStake.toLocaleString()} hunches staked`
+      )
+    );
+
+    // Concentration flag.
+    if (r.topUserShare > CONCENTRATION_FLAG_THRESHOLD) {
+      blocks.push(
+        SECTION(
+          `⚠️ Largest single participant = *${pct(r.topUserShare)}* of stake — this signal is driven by one large position.`
+        )
+      );
+    }
+
     blocks.push(CONTEXT(`Trend: ${sparkline(r.trend)}`));
+
+    // Anonymous, side-tagged rationales (already shuffled + capped upstream).
+    if (r.rationales.length > 0) {
+      const lines = r.rationales
+        .map((rt) => `• (${rt.side}) ${truncate(rt.text, 200)}`)
+        .join("\n");
+      blocks.push(SECTION(`*Why people bet this way:*\n${lines}`));
+    }
+
     blocks.push(DIVIDER);
   }
 
