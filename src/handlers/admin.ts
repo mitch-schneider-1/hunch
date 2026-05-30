@@ -3,6 +3,7 @@ import type { WebClient } from "@slack/web-api";
 import { Side } from "@prisma/client";
 import { prisma } from "../db";
 import { priceYes } from "../market/lmsr";
+import { summarizeBets } from "../market/stats";
 import { buildAdminDashboard, type AdminMarketRow } from "../slack/blocks";
 import { ensureUser, getWorkspaceByTeamId, refreshAdminStatus } from "../slack/workspace";
 
@@ -38,19 +39,9 @@ export async function handleAdminCommand(
   });
 
   const rows: AdminMarketRow[] = markets.map((m) => {
-    const distinctBettors = new Set(m.bets.map((b) => b.userId)).size;
-
-    let yesStake = 0;
-    let noStake = 0;
-    const stakeByUser = new Map<string, number>();
-    for (const bt of m.bets) {
-      if (bt.side === "YES") yesStake += bt.coinsCommitted;
-      else noStake += bt.coinsCommitted;
-      stakeByUser.set(bt.userId, (stakeByUser.get(bt.userId) ?? 0) + bt.coinsCommitted);
-    }
-    const totalStake = yesStake + noStake;
-    const topUserStake = stakeByUser.size > 0 ? Math.max(...stakeByUser.values()) : 0;
-    const topUserShare = totalStake > 0 ? topUserStake / totalStake : 0;
+    const { distinctBettors, yesStake, noStake, topUserShare } = summarizeBets(
+      m.bets
+    );
 
     // Shuffle so the order of rationales doesn't correlate with bet timing
     // (which would otherwise be a weak de-anonymization channel).
