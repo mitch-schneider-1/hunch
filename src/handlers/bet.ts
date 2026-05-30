@@ -1,7 +1,7 @@
 import type { App } from "@slack/bolt";
 import { Side } from "@prisma/client";
 import { prisma } from "../db";
-import { applyBet, previewBet, SHARE_PAYOUT } from "../market/lmsr";
+import { applyBet } from "../market/lmsr";
 import {
   buildBetConfirmation,
   buildBetModal,
@@ -55,50 +55,13 @@ export function registerBet(app: App): void {
         question: market.question,
         defaultCoins,
         maxCoins: user.coinBalance,
-        // Modal opens with no side selected; user must choose before preview shows.
-        preview: { state: "incomplete" },
       }),
     });
   });
 
-  // Live preview: re-render the modal whenever side or coin amount changes.
-  // This is what makes the "if right you win X / lose Y" stay accurate.
-  // NOTE: the rerender is participant-facing and goes through the same
-  // buildBetModal builder — which by construction never includes price.
-  app.action(
-    { action_id: /^(side_input|coins_input)$/ },
-    async ({ ack, body, client }) => {
-      await ack();
-      if (body.type !== "block_actions" || !body.view) return;
-
-      const marketId = body.view.private_metadata;
-      const workspace = await getWorkspaceByTeamId(body.team?.id);
-      const market = await prisma.market.findUnique({ where: { id: marketId } });
-      if (!market || market.workspaceId !== workspace.id) return;
-
-      const user = await ensureUser(client, workspace, body.user.id);
-
-      const draftValues = body.view.state.values;
-      const sideRaw = draftValues.side_block?.side_input?.selected_option?.value;
-      const coinsRaw = draftValues.coins_block?.coins_input?.value?.trim() ?? "";
-
-      const args = {
-        marketId,
-        question: market.question,
-        defaultCoins: Math.min(100, user.coinBalance),
-        maxCoins: user.coinBalance,
-        selectedSide: sideRaw === "YES" || sideRaw === "NO" ? (sideRaw as Side) : undefined,
-        draftCoins: coinsRaw,
-        preview: computePreview(market, sideRaw, coinsRaw, user.coinBalance),
-      };
-
-      await client.views.update({
-        view_id: body.view.id,
-        hash: body.view.hash,
-        view: buildBetModal(args),
-      });
-    }
-  );
+  // Blind LMSR: the modal is static (no live payout preview to re-render),
+  // so there is no side_input/coins_input action handler — showing a live
+  // payout would leak the hidden probability.
 
   // Modal submit → atomic ledger update + market state update + card refresh.
   app.view("submit_bet", async ({ ack, view, body, client }) => {
@@ -210,12 +173,9 @@ export function registerBet(app: App): void {
         metadata: { side, coins, participantCount: result.participantCount },
       });
 
-      // Compute participant-facing win/lose amounts (not internal price).
-      const grossPayout = result.shares * SHARE_PAYOUT;
-      const potentialWin = Math.max(0, grossPayout - coins);
-
       // Send ephemeral confirmation in the market's channel so the user
-      // sees it where they took the action.
+      // sees it where they took the action. Blind LMSR: no payout shown —
+      // it's revealed at resolution.
       await client.chat.postEphemeral({
         channel: result.market.channelId,
         user: body.user.id,
@@ -223,8 +183,6 @@ export function registerBet(app: App): void {
         blocks: buildBetConfirmation({
           side,
           coins,
-          potentialWin,
-          potentialLoss: coins,
           deadline: result.market.deadline,
         }),
       });
@@ -271,34 +229,4 @@ class BetError extends Error {
   constructor(public field: string, message: string) {
     super(message);
   }
-}
-
-function computePreview(
-  market: { qYes: number; qNo: number; b: number },
-  sideRaw: string | undefined,
-  coinsRaw: string,
-  balance: number
-): import("../slack/blocks").BetModalArgs["preview"] {
-  if (sideRaw !== "YES" && sideRaw !== "NO") {
-    return { state: "incomplete", message: "Pick YES or NO to see what's at stake." };
-  }
-  if (!coinsRaw) {
-    return { state: "incomplete", message: "Enter the hunches you want to commit." };
-  }
-  const coins = Number(coinsRaw);
-  if (!Number.isFinite(coins) || coins <= 0 || !Number.isInteger(coins)) {
-    return { state: "invalid", message: "Enter a positive whole number of hunches." };
-  }
-  if (coins > balance) {
-    return {
-      state: "invalid",
-      message: `You only have ${balance.toLocaleString()} hunches.`,
-    };
-  }
-  const p = previewBet(market.qYes, market.qNo, market.b, sideRaw, coins);
-  return {
-    state: "ready",
-    potentialWin: p.potentialWin,
-    potentialLoss: p.potentialLoss,
-  };
 }

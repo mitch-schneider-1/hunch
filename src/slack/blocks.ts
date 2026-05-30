@@ -114,25 +114,16 @@ export interface BetModalArgs {
   question: string;
   defaultCoins: number;
   maxCoins: number;
-  // Preview is computed server-side from current market state + the user's
-  // current draft inputs. NEVER includes price/probability — only "win X / lose Y".
-  preview: {
-    state: "ready" | "incomplete" | "invalid";
-    potentialWin?: number;
-    potentialLoss?: number;
-    message?: string; // shown when state !== "ready"
-  };
-  selectedSide?: Side;
-  draftCoins?: string; // preserve user's text as they type
 }
 
 /**
- * Bet modal. Participant only sees:
- *   - which side
- *   - how many coins
- *   - "if right you win X / if wrong you lose Y" (computed for *their* commitment only)
- * NO market price. The preview is rerendered via views.update as the user
- * changes inputs — see registerBet() in handlers/bet.ts.
+ * Bet modal. Participant sees only which side and how many hunches.
+ *
+ * BLIND LMSR: we deliberately show NO payout preview. The LMSR payout ratio
+ * encodes the current probability — showing "if right you win X" lets anyone
+ * toggle YES/NO and read off the hidden aggregate, which defeats anti-anchoring.
+ * The payout is computed server-side and revealed only at resolution. The modal
+ * is therefore static (no dispatch_action / live re-render).
  */
 export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
   const sideOptions = [
@@ -145,22 +136,6 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
       value: "NO" as const,
     },
   ];
-  const initialOption = args.selectedSide
-    ? sideOptions.find((o) => o.value === args.selectedSide)
-    : undefined;
-
-  let previewBlock: KnownBlock;
-  if (args.preview.state === "ready" && args.preview.potentialWin !== undefined) {
-    previewBlock = SECTION(
-      `*If you're right, you win ~${Math.round(args.preview.potentialWin).toLocaleString()} hunches.*\n` +
-        `*If you're wrong, you lose ${Math.round(args.preview.potentialLoss ?? 0).toLocaleString()} hunches.*`
-    );
-  } else {
-    previewBlock = CONTEXT(
-      args.preview.message ??
-        "Pick a side and an amount. We'll show what's at stake here."
-    );
-  }
 
   return {
     type: "modal",
@@ -175,7 +150,6 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
       {
         type: "input",
         block_id: "side_block",
-        dispatch_action: true,
         label: {
           type: "plain_text",
           text: "Which side do you think will happen?",
@@ -185,13 +159,11 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
           type: "radio_buttons",
           action_id: "side_input",
           options: sideOptions,
-          ...(initialOption ? { initial_option: initialOption } : {}),
         },
       },
       {
         type: "input",
         block_id: "coins_block",
-        dispatch_action: true,
         label: {
           type: "plain_text",
           text: `How many hunches do you want to commit? (you have ${args.maxCoins.toLocaleString()})`,
@@ -200,13 +172,12 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
         element: {
           type: "plain_text_input",
           action_id: "coins_input",
-          initial_value: args.draftCoins ?? String(Math.min(args.defaultCoins, args.maxCoins)),
-          dispatch_action_config: {
-            trigger_actions_on: ["on_enter_pressed"],
-          },
+          initial_value: String(Math.min(args.defaultCoins, args.maxCoins)),
         },
       },
-      previewBlock,
+      CONTEXT(
+        "You're risking the hunches you commit. If you're right you win — the payout is revealed when the question resolves. Hiding it until then is what keeps the signal honest."
+      ),
       CONTEXT(
         `_Your hunch is anonymous. No one — not your manager, not the creator — sees who bet what._`
       ),
@@ -215,14 +186,14 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
 }
 
 /**
- * Ephemeral confirmation after a bet is submitted. Plain coin amounts only.
- * NO price, NO probability.
+ * Ephemeral confirmation after a bet is submitted.
+ *
+ * BLIND LMSR: no payout figure here either — the win amount at bet time
+ * encodes the current price. The payout is revealed at resolution.
  */
 export function buildBetConfirmation(args: {
   side: Side;
   coins: number;
-  potentialWin: number;
-  potentialLoss: number;
   deadline: Date;
 }): KnownBlock[] {
   return [
@@ -230,10 +201,7 @@ export function buildBetConfirmation(args: {
       `Got it. Your hunch is recorded — *${args.coins.toLocaleString()} hunches on ${args.side}*.`
     ),
     CONTEXT(
-      `If you're right you win ~*${Math.round(args.potentialWin).toLocaleString()} hunches*. If you're wrong you lose *${args.potentialLoss.toLocaleString()}*.`
-    ),
-    CONTEXT(
-      `Check back after *${fmtDate(args.deadline)}* to see how you did.`
+      `Your payout is revealed when the question resolves. Check back after *${fmtDate(args.deadline)}* to see how you did.`
     ),
     CONTEXT(
       `🔒 Your bet is anonymous. The creator and your teammates only see the aggregate after resolution.`
