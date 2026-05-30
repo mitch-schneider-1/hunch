@@ -13,6 +13,11 @@
 
 import type { KnownBlock } from "@slack/bolt";
 import { Side } from "@prisma/client";
+import { MAX_RATIONALE_LENGTH } from "../guards/abuse";
+import {
+  CONCENTRATION_FLAG_THRESHOLD,
+  MIN_BETTORS_FOR_DETAIL,
+} from "../guards/anonymity";
 
 const SECTION = (text: string): KnownBlock => ({
   type: "section",
@@ -114,25 +119,16 @@ export interface BetModalArgs {
   question: string;
   defaultCoins: number;
   maxCoins: number;
-  // Preview is computed server-side from current market state + the user's
-  // current draft inputs. NEVER includes price/probability — only "win X / lose Y".
-  preview: {
-    state: "ready" | "incomplete" | "invalid";
-    potentialWin?: number;
-    potentialLoss?: number;
-    message?: string; // shown when state !== "ready"
-  };
-  selectedSide?: Side;
-  draftCoins?: string; // preserve user's text as they type
 }
 
 /**
- * Bet modal. Participant only sees:
- *   - which side
- *   - how many coins
- *   - "if right you win X / if wrong you lose Y" (computed for *their* commitment only)
- * NO market price. The preview is rerendered via views.update as the user
- * changes inputs — see registerBet() in handlers/bet.ts.
+ * Bet modal. Participant sees only which side and how many hunches.
+ *
+ * BLIND LMSR: we deliberately show NO payout preview. The LMSR payout ratio
+ * encodes the current probability — showing "if right you win X" lets anyone
+ * toggle YES/NO and read off the hidden aggregate, which defeats anti-anchoring.
+ * The payout is computed server-side and revealed only at resolution. The modal
+ * is therefore static (no dispatch_action / live re-render).
  */
 export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
   const sideOptions = [
@@ -145,22 +141,6 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
       value: "NO" as const,
     },
   ];
-  const initialOption = args.selectedSide
-    ? sideOptions.find((o) => o.value === args.selectedSide)
-    : undefined;
-
-  let previewBlock: KnownBlock;
-  if (args.preview.state === "ready" && args.preview.potentialWin !== undefined) {
-    previewBlock = SECTION(
-      `*If you're right, you win ~${Math.round(args.preview.potentialWin).toLocaleString()} hunches.*\n` +
-        `*If you're wrong, you lose ${Math.round(args.preview.potentialLoss ?? 0).toLocaleString()} hunches.*`
-    );
-  } else {
-    previewBlock = CONTEXT(
-      args.preview.message ??
-        "Pick a side and an amount. We'll show what's at stake here."
-    );
-  }
 
   return {
     type: "modal",
@@ -175,7 +155,6 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
       {
         type: "input",
         block_id: "side_block",
-        dispatch_action: true,
         label: {
           type: "plain_text",
           text: "Which side do you think will happen?",
@@ -185,13 +164,11 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
           type: "radio_buttons",
           action_id: "side_input",
           options: sideOptions,
-          ...(initialOption ? { initial_option: initialOption } : {}),
         },
       },
       {
         type: "input",
         block_id: "coins_block",
-        dispatch_action: true,
         label: {
           type: "plain_text",
           text: `How many hunches do you want to commit? (you have ${args.maxCoins.toLocaleString()})`,
@@ -200,13 +177,37 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
         element: {
           type: "plain_text_input",
           action_id: "coins_input",
-          initial_value: args.draftCoins ?? String(Math.min(args.defaultCoins, args.maxCoins)),
-          dispatch_action_config: {
-            trigger_actions_on: ["on_enter_pressed"],
-          },
+          initial_value: String(Math.min(args.defaultCoins, args.maxCoins)),
         },
       },
-      previewBlock,
+      {
+        type: "input",
+        block_id: "rationale_block",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Why? (optional)",
+          emoji: false,
+        },
+        element: {
+          type: "plain_text_input",
+          action_id: "rationale_input",
+          multiline: true,
+          max_length: MAX_RATIONALE_LENGTH,
+          placeholder: {
+            type: "plain_text",
+            text: "What makes you lean this way?",
+          },
+        },
+        hint: {
+          type: "plain_text",
+          text: "Shown anonymously to admins. Don't include anything that identifies you.",
+          emoji: false,
+        },
+      },
+      CONTEXT(
+        "You're risking the hunches you commit. If you're right you win — the payout is revealed when the question resolves. Hiding it until then is what keeps the signal honest."
+      ),
       CONTEXT(
         `_Your hunch is anonymous. No one — not your manager, not the creator — sees who bet what._`
       ),
@@ -215,14 +216,14 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
 }
 
 /**
- * Ephemeral confirmation after a bet is submitted. Plain coin amounts only.
- * NO price, NO probability.
+ * Ephemeral confirmation after a bet is submitted.
+ *
+ * BLIND LMSR: no payout figure here either — the win amount at bet time
+ * encodes the current price. The payout is revealed at resolution.
  */
 export function buildBetConfirmation(args: {
   side: Side;
   coins: number;
-  potentialWin: number;
-  potentialLoss: number;
   deadline: Date;
 }): KnownBlock[] {
   return [
@@ -230,10 +231,7 @@ export function buildBetConfirmation(args: {
       `Got it. Your hunch is recorded — *${args.coins.toLocaleString()} hunches on ${args.side}*.`
     ),
     CONTEXT(
-      `If you're right you win ~*${Math.round(args.potentialWin).toLocaleString()} hunches*. If you're wrong you lose *${args.potentialLoss.toLocaleString()}*.`
-    ),
-    CONTEXT(
-      `Check back after *${fmtDate(args.deadline)}* to see how you did.`
+      `Your payout is revealed when the question resolves. Check back after *${fmtDate(args.deadline)}* to see how you did.`
     ),
     CONTEXT(
       `🔒 Your bet is anonymous. The creator and your teammates only see the aggregate after resolution.`
@@ -383,10 +381,14 @@ export interface AdminMarketRow {
   id: string;
   question: string;
   deadline: Date;
-  yesCount: number;
-  noCount: number;
-  currentProbability: number;
+  distinctBettors: number;
+  currentProbability: number; // YES probability
   trend: number[]; // chronological YES probability snapshots
+  yesStake: number; // hunches committed to YES
+  noStake: number; // hunches committed to NO
+  topUserShare: number; // largest single participant's share of total stake, 0–1
+  creatorPrior: number | null; // creator's own YES probability, if they set one
+  rationales: Array<{ side: Side; text: string }>; // anonymous, pre-shuffled, pre-capped
 }
 
 function sparkline(trend: number[]): string {
@@ -394,12 +396,24 @@ function sparkline(trend: number[]): string {
   return trend.map((p) => pct(p)).join(" → ");
 }
 
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
+/**
+ * Admin/exec dashboard. Aggregated signal only — never individual identities.
+ *
+ * Anonymity gate: a market with fewer than MIN_BETTORS_FOR_DETAIL distinct
+ * bettors shows NOTHING but a "breakdown pending" line. Below that threshold,
+ * the aggregate + stake split + a single large position would let an admin who
+ * knows a small team infer who bet which side.
+ */
 export function buildAdminDashboard(rows: AdminMarketRow[]): KnownBlock[] {
   if (rows.length === 0) {
     return [
       SECTION("*Admin view*"),
       SECTION(
-        "No open markets right now. Once you (or anyone with admin) creates one, this view shows the aggregated YES probability and the trend over time — across every market in the workspace."
+        "No open markets right now. Once you (or anyone with admin) creates one, this view shows the team's aggregated YES probability, how it compares to your own call, and the trend over time."
       ),
       {
         type: "actions",
@@ -421,14 +435,69 @@ export function buildAdminDashboard(rows: AdminMarketRow[]): KnownBlock[] {
   ];
 
   for (const r of rows) {
+    if (r.distinctBettors < MIN_BETTORS_FOR_DETAIL) {
+      blocks.push(SECTION(`*${r.question}*`));
+      blocks.push(
+        CONTEXT(
+          `Breakdown appears once *${MIN_BETTORS_FOR_DETAIL}* people have weighed in (${r.distinctBettors}/${MIN_BETTORS_FOR_DETAIL}) — keeps individual bets anonymous.`
+        )
+      );
+      blocks.push(DIVIDER);
+      continue;
+    }
+
     blocks.push(
       SECTION(
-        `*${r.question}*\nResolves ${fmtDate(r.deadline)}  ·  Aggregate: *${pct(
+        `*${r.question}*\nResolves ${fmtDate(r.deadline)}  ·  Team: *${pct(
           r.currentProbability
-        )} YES*  ·  ${r.yesCount} YES bets, ${r.noCount} NO bets`
+        )} YES*  ·  ${r.distinctBettors} people`
       )
     );
+
+    // Creator prior vs team.
+    if (r.creatorPrior != null) {
+      const diff = Math.round((r.creatorPrior - r.currentProbability) * 100);
+      const gap =
+        diff > 0
+          ? `you're +${diff} pts more bullish`
+          : diff < 0
+            ? `you're ${diff} pts more bearish`
+            : "dead on with the team";
+      blocks.push(
+        CONTEXT(
+          `Your call: *${pct(r.creatorPrior)} YES*  ·  Team: *${pct(r.currentProbability)}*  ·  ${gap}`
+        )
+      );
+    }
+
+    // Stake-weighted split (replaces raw counts — counts were the de-anon vector).
+    const totalStake = r.yesStake + r.noStake;
+    const yesShare = totalStake > 0 ? r.yesStake / totalStake : 0;
+    blocks.push(
+      CONTEXT(
+        `Stake: *${pct(yesShare)} YES / ${pct(1 - yesShare)} NO*  ·  ${totalStake.toLocaleString()} hunches staked`
+      )
+    );
+
+    // Concentration flag.
+    if (r.topUserShare > CONCENTRATION_FLAG_THRESHOLD) {
+      blocks.push(
+        SECTION(
+          `⚠️ Largest single participant = *${pct(r.topUserShare)}* of stake — this signal is driven by one large position.`
+        )
+      );
+    }
+
     blocks.push(CONTEXT(`Trend: ${sparkline(r.trend)}`));
+
+    // Anonymous, side-tagged rationales (already shuffled + capped upstream).
+    if (r.rationales.length > 0) {
+      const lines = r.rationales
+        .map((rt) => `• (${rt.side}) ${truncate(rt.text, 200)}`)
+        .join("\n");
+      blocks.push(SECTION(`*Why people bet this way:*\n${lines}`));
+    }
+
     blocks.push(DIVIDER);
   }
 
@@ -726,6 +795,37 @@ export function buildCreateMarketModal(
           filter: { include: ["public", "private"], exclude_bot_users: true },
         },
       },
+      {
+        type: "input",
+        block_id: "prior_block",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Your estimate (optional)",
+          emoji: false,
+        },
+        element: {
+          type: "static_select",
+          action_id: "prior_input",
+          placeholder: {
+            type: "plain_text",
+            text: "What % chance do you give YES?",
+          },
+          options: PRIOR_BUCKETS.map((p) => ({
+            text: { type: "plain_text" as const, text: `${p}%`, emoji: false },
+            value: String(p / 100),
+          })),
+        },
+        hint: {
+          type: "plain_text",
+          text: "Private — only admins see it, and it locks once you post. Lets you compare your call to the team's.",
+          emoji: false,
+        },
+      },
     ],
   };
 }
+
+// Buckets offered for the creator's private prior. Coarse on purpose — a
+// dropdown can't be fat-fingered, and exact precision isn't the point.
+const PRIOR_BUCKETS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95];

@@ -77,6 +77,11 @@ model Market {
   b                  Float
   qYes               Float        @default(0)
   qNo                Float        @default(0)
+  // The creator's own YES probability (0–1), captured once at creation and
+  // never updated. Admin/exec-only — compared against the team aggregate in
+  // the /hunch admin view. NEVER rendered to participants (it's a probability,
+  // exactly the signal we hide pre-resolution).
+  creatorPrior       Float?
   status             MarketStatus @default(OPEN)
   outcome            Side?
   resolvedAt         DateTime?
@@ -98,6 +103,10 @@ model Bet {
   coinsCommitted  Int
   sharesReceived  Float
   priceAtBet      Float
+  // Optional, anonymous "why I bet this way". Surfaced ONLY in the admin
+  // view, side-tagged, and only once a market has >= MIN_BETTORS_FOR_DETAIL
+  // distinct bettors. Never tied to a username.
+  rationale       String?
   createdAt       DateTime @default(now())
 
   market Market @relation(fields: [marketId], references: [id], onDelete: Cascade)

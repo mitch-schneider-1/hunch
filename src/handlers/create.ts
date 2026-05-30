@@ -55,6 +55,11 @@ export function registerCreateMarket(app: App): void {
     const criteria = values.criteria_block?.criteria_input?.value?.trim();
     const deadlineEpochSec = values.deadline_block?.deadline_input?.selected_date_time;
     const channelId = values.channel_block?.channel_input?.selected_conversation;
+    // Optional creator prior (decimal 0–1). Locked in here, never updated.
+    const priorRaw = values.prior_block?.prior_input?.selected_option?.value;
+    const priorNum = priorRaw != null ? Number(priorRaw) : NaN;
+    const creatorPrior =
+      Number.isFinite(priorNum) && priorNum > 0 && priorNum < 1 ? priorNum : null;
 
     const errors: Record<string, string> = {};
     if (!question) errors.question_block = "Add a question.";
@@ -107,6 +112,7 @@ export function registerCreateMarket(app: App): void {
         deadline,
         channelId: channelId!,
         b,
+        creatorPrior,
       },
     });
 
