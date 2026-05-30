@@ -13,6 +13,7 @@
 
 import type { KnownBlock } from "@slack/bolt";
 import { Side } from "@prisma/client";
+import { MAX_RATIONALE_LENGTH } from "../guards/abuse";
 
 const SECTION = (text: string): KnownBlock => ({
   type: "section",
@@ -173,6 +174,31 @@ export function buildBetModal(args: BetModalArgs): import("@slack/bolt").View {
           type: "plain_text_input",
           action_id: "coins_input",
           initial_value: String(Math.min(args.defaultCoins, args.maxCoins)),
+        },
+      },
+      {
+        type: "input",
+        block_id: "rationale_block",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Why? (optional)",
+          emoji: false,
+        },
+        element: {
+          type: "plain_text_input",
+          action_id: "rationale_input",
+          multiline: true,
+          max_length: MAX_RATIONALE_LENGTH,
+          placeholder: {
+            type: "plain_text",
+            text: "What makes you lean this way?",
+          },
+        },
+        hint: {
+          type: "plain_text",
+          text: "Shown anonymously to admins. Don't include anything that identifies you.",
+          emoji: false,
         },
       },
       CONTEXT(

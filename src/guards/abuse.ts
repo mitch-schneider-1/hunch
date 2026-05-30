@@ -9,6 +9,7 @@ export const MAX_MARKETS_PER_WORKSPACE_PER_DAY = 50;
 export const MAX_BETS_PER_USER_PER_MARKET = 10;
 export const MAX_QUESTION_LENGTH = 280;
 export const MAX_CRITERIA_LENGTH = 1000;
+export const MAX_RATIONALE_LENGTH = 500;
 
 export class AbuseLimitError extends Error {
   constructor(public field: string, message: string) {

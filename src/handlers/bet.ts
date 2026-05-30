@@ -8,6 +8,7 @@ import {
   buildMarketCard,
 } from "../slack/blocks";
 import { ensureUser, getWorkspaceByTeamId } from "../slack/workspace";
+import { MAX_RATIONALE_LENGTH } from "../guards/abuse";
 import { logEvent } from "../observability/events";
 
 export function registerBet(app: App): void {
@@ -70,6 +71,13 @@ export function registerBet(app: App): void {
       view.state.values.side_block?.side_input?.selected_option?.value;
     const coinsRaw =
       view.state.values.coins_block?.coins_input?.value?.trim();
+    // Optional anonymous rationale. Trim, cap, and store null when empty.
+    const rationaleRaw =
+      view.state.values.rationale_block?.rationale_input?.value?.trim();
+    const rationale =
+      rationaleRaw && rationaleRaw.length > 0
+        ? rationaleRaw.slice(0, MAX_RATIONALE_LENGTH)
+        : null;
 
     const errors: Record<string, string> = {};
     if (sideRaw !== "YES" && sideRaw !== "NO") {
@@ -145,6 +153,7 @@ export function registerBet(app: App): void {
             coinsCommitted: coins,
             sharesReceived: updated.shares,
             priceAtBet: updated.priceAfter,
+            rationale,
           },
         });
         await tx.priceSnapshot.create({
