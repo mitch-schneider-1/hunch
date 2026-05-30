@@ -720,6 +720,37 @@ export function buildCreateMarketModal(
           filter: { include: ["public", "private"], exclude_bot_users: true },
         },
       },
+      {
+        type: "input",
+        block_id: "prior_block",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Your estimate (optional)",
+          emoji: false,
+        },
+        element: {
+          type: "static_select",
+          action_id: "prior_input",
+          placeholder: {
+            type: "plain_text",
+            text: "What % chance do you give YES?",
+          },
+          options: PRIOR_BUCKETS.map((p) => ({
+            text: { type: "plain_text" as const, text: `${p}%`, emoji: false },
+            value: String(p / 100),
+          })),
+        },
+        hint: {
+          type: "plain_text",
+          text: "Private — only admins see it, and it locks once you post. Lets you compare your call to the team's.",
+          emoji: false,
+        },
+      },
     ],
   };
 }
+
+// Buckets offered for the creator's private prior. Coarse on purpose — a
+// dropdown can't be fat-fingered, and exact precision isn't the point.
+const PRIOR_BUCKETS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95];
