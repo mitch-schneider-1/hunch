@@ -13,8 +13,10 @@ import {
   buildBetConfirmation,
   buildBetModal,
   buildMarketCard,
+  buildPortfolio,
   buildResolutionCard,
   type AdminMarketRow,
+  type PortfolioInput,
 } from "../src/slack/blocks";
 import { summarizeBets } from "../src/market/stats";
 
@@ -361,5 +363,142 @@ describe("resolution card discloses the final aggregated probability", () => {
 
   it("does include the final probability after resolution", () => {
     expect(serialized).toContain("68%");
+  });
+});
+
+describe("buildPortfolio — personal history & record", () => {
+  function makeResolved(
+    wins: number,
+    losses: number
+  ): PortfolioInput["resolvedPositions"] {
+    const out: PortfolioInput["resolvedPositions"] = [];
+    for (let i = 0; i < wins; i++) {
+      out.push({ question: `Win ${i}`, side: "YES", outcome: "YES", pnl: 100 });
+    }
+    for (let i = 0; i < losses; i++) {
+      out.push({ question: `Loss ${i}`, side: "YES", outcome: "NO", pnl: -50 });
+    }
+    return out;
+  }
+
+  function input(overrides: Partial<PortfolioInput> = {}): PortfolioInput {
+    return {
+      coinBalance: 10_000,
+      openPositions: [],
+      resolvedPositions: [],
+      allTimePnl: 0,
+      ...overrides,
+    };
+  }
+
+  it("renders balance first, the X-of-Y record + win rate, and won/lost/net totals", () => {
+    const blocks = buildPortfolio(
+      input({
+        coinBalance: 11_240,
+        resolvedPositions: [
+          { question: "A", side: "YES", outcome: "YES", pnl: 1500 }, // won
+          { question: "B", side: "NO", outcome: "NO", pnl: 600 }, // won
+          { question: "C", side: "YES", outcome: "NO", pnl: -860 }, // lost
+        ],
+        allTimePnl: 1240, // net = 2100 won - 860 lost
+      })
+    );
+
+    // Balance is the hero — first block, with the unit spelled out.
+    expect((blocks[0] as { text: { text: string } }).text.text).toBe(
+      "*Your balance:* 11,240 hunches"
+    );
+
+    const s = JSON.stringify(blocks);
+    // Record: 2 of 3 right → round(66.66) = 67%.
+    expect(s).toContain("Your record: *2 of 3* called right (67%)");
+    // Won / Lost / Net: won = 1500+600 = 2,100; lost = 860; net = 1,240.
+    expect(s).toContain("Won *+2,100*");
+    expect(s).toContain("Lost *−860*");
+    expect(s).toContain("Net *+1,240* hunches");
+  });
+
+  it("shows a negative net with a minus sign when losses exceed wins", () => {
+    const s = JSON.stringify(
+      buildPortfolio(
+        input({
+          resolvedPositions: [
+            { question: "A", side: "YES", outcome: "YES", pnl: 200 }, // won
+            { question: "B", side: "YES", outcome: "NO", pnl: -900 }, // lost
+          ],
+          allTimePnl: -700,
+        })
+      )
+    );
+    expect(s).toContain("Won *+200*");
+    expect(s).toContain("Lost *−900*");
+    expect(s).toContain("Net *−700* hunches");
+  });
+
+  it("omits the record + won/lost lines for an open-only portfolio (shows the 'coming' note)", () => {
+    const s = JSON.stringify(
+      buildPortfolio(
+        input({
+          openPositions: [
+            { question: "Will we ship?", side: "YES", coinsCommitted: 500 },
+          ],
+        })
+      )
+    );
+    expect(s).toContain("no resolved hunches yet");
+    expect(s).not.toContain("called right");
+    expect(s).not.toContain("Won *");
+    expect(s).not.toContain("Net *");
+    // The open position itself still renders.
+    expect(s).toContain("You bet *YES* with *500* hunches.");
+  });
+
+  it("renders the empty state (and no record line) when the user has no bets at all", () => {
+    const blocks = buildPortfolio(input({ coinBalance: 10_000 }));
+    const s = JSON.stringify(blocks);
+    expect((blocks[0] as { text: { text: string } }).text.text).toBe(
+      "*Your balance:* 10,000 hunches"
+    );
+    expect(s).toContain("You haven't shared any hunches yet");
+    expect(s).not.toContain("Your record");
+    expect(s).not.toContain("Won *");
+  });
+
+  it("computes win rate correctly (7 of 12 → 58%, all-correct → 100%)", () => {
+    const mixed = JSON.stringify(
+      buildPortfolio(
+        input({ resolvedPositions: makeResolved(7, 5), allTimePnl: 450 })
+      )
+    );
+    expect(mixed).toContain("*7 of 12* called right (58%)");
+
+    const perfect = JSON.stringify(
+      buildPortfolio(
+        input({ resolvedPositions: makeResolved(4, 0), allTimePnl: 400 })
+      )
+    );
+    expect(perfect).toContain("*4 of 4* called right (100%)");
+  });
+
+  it("never leaks a payout or market probability on open positions (blind invariant)", () => {
+    // Open-only so the win-rate % (a personal calibration stat, not a market
+    // price) isn't present — any % here would be a real leak.
+    const s = JSON.stringify(
+      buildPortfolio(
+        input({
+          openPositions: [
+            { question: "Will we ship?", side: "YES", coinsCommitted: 500 },
+            { question: "Will we hit target?", side: "NO", coinsCommitted: 250 },
+          ],
+        })
+      )
+    ).toLowerCase();
+
+    expect(s).not.toMatch(/\d+\s*%/); // no percentage anywhere
+    expect(s).not.toContain("payout");
+    expect(s).not.toContain("probability");
+    expect(s).not.toContain("price");
+    // Open positions show committed amount only.
+    expect(s).toContain("you bet *yes* with *500* hunches.");
   });
 });
