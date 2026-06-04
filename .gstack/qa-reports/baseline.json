@@ -1,0 +1,19 @@
+{
+  "date": "2026-05-29",
+  "url": "https://hunchpredictions.com",
+  "healthScore": 99.6,
+  "previousScore": 91.9,
+  "mode": "regression-live",
+  "issues": [
+    { "id": "ISSUE-001", "title": "TLS cert mismatch on app.hunchpredictions.com", "severity": "critical", "category": "functional", "status": "resolved" },
+    { "id": "ISSUE-002", "title": "No OG/Twitter meta", "severity": "high", "category": "content", "status": "resolved" },
+    { "id": "ISSUE-003", "title": "Footer GitHub link 404", "severity": "medium", "category": "links", "status": "resolved" },
+    { "id": "ISSUE-004", "title": "No favicon", "severity": "medium", "category": "content", "status": "resolved" },
+    { "id": "ISSUE-005", "title": "h1 wordmark contrast 1.66:1 (intentional)", "severity": "low", "category": "accessibility", "status": "deferred-intentional" },
+    { "id": "ISSUE-006", "title": "muted text contrast", "severity": "low", "category": "accessibility", "status": "resolved" }
+  ],
+  "categoryScores": {
+    "console": 100, "links": 100, "visual": 100, "functional": 100,
+    "ux": 100, "performance": 100, "content": 100, "accessibility": 97
+  }
+}

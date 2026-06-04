@@ -260,16 +260,24 @@ export interface PortfolioInput {
 /**
  * `/hunch me` ephemeral. Shows ONLY the user's own bets. Open positions
  * are valued at coins committed — never at any current market price.
+ *
+ * Information hierarchy (top → bottom): balance (hero) → record (calibration)
+ * → won/lost/net → open list → resolved list. The record + won/lost lines turn
+ * a scoreboard into a calibration tool; both derive entirely from
+ * resolvedPositions + allTimePnl, so no new inputs are needed.
  */
 export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
+  const resolvedCount = p.resolvedPositions.length;
+  const correctCount = p.resolvedPositions.filter(
+    (pos) => pos.side === pos.outcome
+  ).length;
+
+  // Balance is the hero — shown first, on its own line.
   const blocks: KnownBlock[] = [
-    SECTION(`*Your hunches:* ${p.coinBalance.toLocaleString()}`),
-    CONTEXT(
-      `All-time P&L from resolved hunches: *${p.allTimePnl >= 0 ? "+" : ""}${p.allTimePnl.toLocaleString()} hunches*`
-    ),
+    SECTION(`*Your balance:* ${p.coinBalance.toLocaleString()} hunches`),
   ];
 
-  if (p.openPositions.length === 0 && p.resolvedPositions.length === 0) {
+  if (p.openPositions.length === 0 && resolvedCount === 0) {
     blocks.push(DIVIDER);
     blocks.push(
       SECTION(
@@ -277,6 +285,37 @@ export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
       )
     );
     return blocks;
+  }
+
+  // Record + won/lost/net are only meaningful once something has resolved.
+  // Before that, a single note tells the user the record is coming.
+  if (resolvedCount > 0) {
+    const winRate = Math.round((correctCount / resolvedCount) * 100);
+    const totalWon = p.resolvedPositions
+      .filter((pos) => pos.pnl > 0)
+      .reduce((sum, pos) => sum + pos.pnl, 0);
+    const totalLost = p.resolvedPositions
+      .filter((pos) => pos.pnl < 0)
+      .reduce((sum, pos) => sum - pos.pnl, 0);
+    const net = p.allTimePnl;
+    const netSign = net >= 0 ? "+" : "−";
+
+    blocks.push(
+      CONTEXT(
+        `Your record: *${correctCount} of ${resolvedCount}* called right (${winRate}%)`
+      )
+    );
+    blocks.push(
+      CONTEXT(
+        `Won *+${totalWon.toLocaleString()}* · Lost *−${totalLost.toLocaleString()}* · Net *${netSign}${Math.abs(net).toLocaleString()}* hunches`
+      )
+    );
+  } else {
+    blocks.push(
+      CONTEXT(
+        "Your record: no resolved hunches yet — it appears once your first question resolves."
+      )
+    );
   }
 
   if (p.openPositions.length > 0) {
@@ -291,7 +330,7 @@ export function buildPortfolio(p: PortfolioInput): KnownBlock[] {
     }
   }
 
-  if (p.resolvedPositions.length > 0) {
+  if (resolvedCount > 0) {
     blocks.push(DIVIDER);
     blocks.push(SECTION("*Resolved hunches*"));
     for (const pos of p.resolvedPositions) {
